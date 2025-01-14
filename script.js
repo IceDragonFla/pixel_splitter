@@ -391,6 +391,15 @@ class PixelSplitter {
             const displayX = (this.width - displayWidth) / 2;
             const displayY = (this.height - displayHeight) / 2;
             
+            // 保存像素大小供绘制使用
+            this.pixelSize = displayScale;
+            
+            // 保存显示位置信息供绘制使用
+            this.displayOffset = {
+                x: displayX,
+                y: displayY
+            };
+            
             this.mainCtx.imageSmoothingEnabled = false;
             this.mainCtx.drawImage(img, displayX, displayY, displayWidth, displayHeight);
         };
@@ -683,9 +692,19 @@ class PixelSplitter {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        // 计算像素位置
-        const pixelX = Math.floor(x / this.pixelSize) * this.pixelSize;
-        const pixelY = Math.floor(y / this.pixelSize) * this.pixelSize;
+        // 计算相对于显示区域的位置
+        const relativeX = x - this.displayOffset.x;
+        const relativeY = y - this.displayOffset.y;
+        
+        // 计算像素位置，确保对齐到像素网格
+        const pixelX = Math.floor(relativeX / this.pixelSize) * this.pixelSize + this.displayOffset.x;
+        const pixelY = Math.floor(relativeY / this.pixelSize) * this.pixelSize + this.displayOffset.y;
+        
+        // 检查是否在有效的绘制范围内
+        if (relativeX < 0 || relativeY < 0 || 
+            pixelX >= this.width || pixelY >= this.height) {
+            return;
+        }
         
         // 保存当前状态
         this.saveState();
