@@ -222,81 +222,85 @@ class PixelSplitter {
             height: this.originalHeight * this.scale
         };
 
-        // 计算中心交叉区域的四个方格大小
+        // 计算中心交叉区域的四个方格大小，使用精确值
         const standardPixelSize = {
-            width: (this.guidelines.vertical.right - this.guidelines.vertical.left) / 2, // 除以2因为是两个方格
-            height: (this.guidelines.horizontal.bottom - this.guidelines.horizontal.top) / 2  // 除以2因为是两个方格
+            width: (this.guidelines.vertical.right - this.guidelines.vertical.left) / 2,
+            height: (this.guidelines.horizontal.bottom - this.guidelines.horizontal.top) / 2
         };
 
-        // 使用较小的值作为标准像素大小，确保是正方形
-        const pixelSize = Math.min(standardPixelSize.width, standardPixelSize.height) / this.scale; // 转换回原图尺寸
+        // 使用精确的像素大小，避免舍入误差
+        const pixelSize = Math.min(standardPixelSize.width, standardPixelSize.height) / this.scale;
+        
+        // 使用ceil来确保覆盖整个图片
+        const cols = Math.ceil(this.originalWidth / pixelSize);
+        const rows = Math.ceil(this.originalHeight / pixelSize);
 
-        // 计算整个图片应该划分的像素数量
-        const cols = Math.floor(this.originalWidth / pixelSize);
-        const rows = Math.floor(this.originalHeight / pixelSize);
-
-        // 更新网格大小显示
+        // 更新显示
         document.getElementById('gridSize').textContent = `${cols} x ${rows}`;
         document.getElementById('selectionArea').textContent = 
-            `像素大小: ${Math.round(pixelSize)}px`;
+            `像素大小: ${pixelSize.toFixed(2)}px`;
 
-        // 创建临时画布用于获取原始图片数据
+        // 创建画布
         const sourceCanvas = document.createElement('canvas');
         const sourceCtx = sourceCanvas.getContext('2d');
         sourceCanvas.width = this.originalWidth;
         sourceCanvas.height = this.originalHeight;
         sourceCtx.drawImage(this.originalImage, 0, 0);
 
-        // 创建输出画布
-        const outputPixelSize = 1; // 每个像素输出为1x1
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = cols;
         tempCanvas.height = rows;
 
-        // 清空输出画布
-        tempCtx.fillStyle = 'white';
-        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-        // 遍历每个网格
+        // 使用双线性插值进行采样
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
-                // 计算采样区域
-                const sampleX = Math.floor(col * pixelSize);
-                const sampleY = Math.floor(row * pixelSize);
-                const sampleWidth = Math.ceil(pixelSize);
-                const sampleHeight = Math.ceil(pixelSize);
-
-                try {
-                    // 获取该区域的图像数据
-                    const imageData = sourceCtx.getImageData(
-                        sampleX,
-                        sampleY,
-                        Math.min(sampleWidth, this.originalWidth - sampleX),
-                        Math.min(sampleHeight, this.originalHeight - sampleY)
-                    );
-
-                    // 获取主导颜色
-                    const dominantColor = this.getDominantColor(imageData);
-
-                    // 绘制像素
-                    tempCtx.fillStyle = `rgb(${dominantColor.r}, ${dominantColor.g}, ${dominantColor.b})`;
-                    tempCtx.fillRect(col, row, 1, 1);
-                } catch (error) {
-                    console.error(`Error processing pixel at ${col},${row}:`, error);
+                // 计算精确的采样区域
+                const sampleX = col * pixelSize;
+                const sampleY = row * pixelSize;
+                
+                // 使用子像素采样来提高精度
+                const subPixels = 4; // 将每个像素区域分成16个子区域
+                const colors = [];
+                
+                for (let sy = 0; sy < subPixels; sy++) {
+                    for (let sx = 0; sx < subPixels; sx++) {
+                        const x = sampleX + (sx + 0.5) * (pixelSize / subPixels);
+                        const y = sampleY + (sy + 0.5) * (pixelSize / subPixels);
+                        
+                        if (x < this.originalWidth && y < this.originalHeight) {
+                            const data = sourceCtx.getImageData(
+                                Math.floor(x), 
+                                Math.floor(y), 
+                                1, 
+                                1
+                            ).data;
+                            
+                            colors.push({
+                                r: data[0],
+                                g: data[1],
+                                b: data[2],
+                                a: data[3]
+                            });
+                        }
+                    }
                 }
+                
+                // 计算更精确的主导颜色
+                const dominantColor = this.getImprovedDominantColor(colors);
+                
+                // 绘制像素
+                tempCtx.fillStyle = `rgb(${dominantColor.r}, ${dominantColor.g}, ${dominantColor.b})`;
+                tempCtx.fillRect(col, row, 1, 1);
             }
         }
 
-        // 保存处理后的图片
+        // 保存和显示结果
         this.processedImage = tempCanvas.toDataURL('image/png');
-
-        // 显示处理后的图片
         const img = new Image();
         img.onload = () => {
             this.mainCtx.clearRect(0, 0, this.width, this.height);
             
-            // 计算显示大小，保持像素清晰
             const displayScale = Math.min(
                 this.width / cols,
                 this.height / rows
@@ -312,36 +316,57 @@ class PixelSplitter {
         img.src = this.processedImage;
     }
 
-    getDominantColor(imageData) {
-        const colorMap = {};
-        const data = imageData.data;
-        
-        // 遍历所有像素
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const a = data[i + 3];
-            
-            // 忽略完全透明的像素
-            if (a === 0) continue;
-            
-            const key = `${r},${g},${b}`;
-            colorMap[key] = (colorMap[key] || 0) + 1;
+    // 改进的主导颜色计算方法
+    getImprovedDominantColor(colors) {
+        if (colors.length === 0) {
+            return { r: 0, g: 0, b: 0 };
         }
+
+        // 使用加权平均来计算颜色
+        const colorGroups = {};
         
-        // 找出出现次数最多的颜色
+        // 对相似颜色进行分组
+        colors.forEach(color => {
+            if (color.a < 128) return; // 忽略高度透明的像素
+            
+            // 将RGB值量化到较少的级别以合并相似颜色
+            const quantizedColor = {
+                r: Math.round(color.r / 8) * 8,
+                g: Math.round(color.g / 8) * 8,
+                b: Math.round(color.b / 8) * 8
+            };
+            
+            const key = `${quantizedColor.r},${quantizedColor.g},${quantizedColor.b}`;
+            if (!colorGroups[key]) {
+                colorGroups[key] = {
+                    sum: { r: 0, g: 0, b: 0 },
+                    count: 0
+                };
+            }
+            
+            colorGroups[key].sum.r += color.r;
+            colorGroups[key].sum.g += color.g;
+            colorGroups[key].sum.b += color.b;
+            colorGroups[key].count++;
+        });
+
+        // 找出出现次数最多的颜色组
         let maxCount = 0;
         let dominantColor = { r: 0, g: 0, b: 0 };
-        
-        for (const key in colorMap) {
-            if (colorMap[key] > maxCount) {
-                maxCount = colorMap[key];
-                const [r, g, b] = key.split(',').map(Number);
-                dominantColor = { r, g, b };
+
+        for (const key in colorGroups) {
+            const group = colorGroups[key];
+            if (group.count > maxCount) {
+                maxCount = group.count;
+                // 使用该组的平均颜色
+                dominantColor = {
+                    r: Math.round(group.sum.r / group.count),
+                    g: Math.round(group.sum.g / group.count),
+                    b: Math.round(group.sum.b / group.count)
+                };
             }
         }
-        
+
         return dominantColor;
     }
 
