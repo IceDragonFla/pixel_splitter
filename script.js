@@ -784,13 +784,21 @@ class PixelSplitter {
         // 保存当前状态
         this.saveState();
         
-        // 绘制
-        this.editCtx.fillStyle = this.currentTool === 'eraser' ? 'transparent' : this.currentColor;
+        // 设置绘制模式
         if (this.currentTool === 'eraser') {
-            this.editCtx.clearRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+            // 使用 globalCompositeOperation 来实现擦除
+            this.editCtx.globalCompositeOperation = 'destination-out';
+            this.editCtx.fillStyle = 'rgba(0, 0, 0, 1)';
         } else {
-            this.editCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+            this.editCtx.globalCompositeOperation = 'source-over';
+            this.editCtx.fillStyle = this.currentColor;
         }
+        
+        // 绘制
+        this.editCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        
+        // 恢复默认绘制模式
+        this.editCtx.globalCompositeOperation = 'source-over';
     }
 
     stopDrawing() {
