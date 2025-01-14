@@ -878,15 +878,22 @@ class PixelSplitter {
 
         // 如果是取色器工具
         if (this.currentTool === 'picker') {
-            // 获取点击位置的颜色
-            const pixelData = this.mainCtx.getImageData(
-                gridX * this.pixelSize + this.displayOffset.x,
-                gridY * this.pixelSize + this.displayOffset.y,
-                1, 1
-            ).data;
+            // 从主画布获取颜色
+            const pixelX = gridX * this.pixelSize + this.displayOffset.x;
+            const pixelY = gridY * this.pixelSize + this.displayOffset.y;
             
-            const color = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
-            this.selectColor(color);
+            // 优先从编辑画布获取颜色
+            const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
+            if (editPixel[3] > 0) { // 如果编辑画布上有颜色
+                const color = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
+                this.selectColor(color);
+            } else { // 如果编辑画布上没有颜色，从主画布获取
+                const mainPixel = this.mainCtx.getImageData(pixelX, pixelY, 1, 1).data;
+                if (mainPixel[3] > 0) {
+                    const color = `rgb(${mainPixel[0]}, ${mainPixel[1]}, ${mainPixel[2]})`;
+                    this.selectColor(color);
+                }
+            }
             
             // 取色后自动切换回铅笔工具
             this.selectTool('pencil');
