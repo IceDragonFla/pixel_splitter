@@ -899,16 +899,12 @@ class PixelSplitter {
         if (!this.editMode || !this.isDrawing) return;
         
         const rect = this.editCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        // 计算相对于显示区域的位置
-        const relativeX = x - this.displayOffset.x;
-        const relativeY = y - this.displayOffset.y;
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
         
         // 计算网格位置
-        const gridX = Math.floor(relativeX / this.pixelSize);
-        const gridY = Math.floor(relativeY / this.pixelSize);
+        const gridX = Math.floor((x - this.displayOffset.x) / this.pixelSize);
+        const gridY = Math.floor((y - this.displayOffset.y) / this.pixelSize);
         
         // 检查是否在有效的绘制范围内
         if (gridX < 0 || gridY < 0 || 
@@ -919,8 +915,9 @@ class PixelSplitter {
 
         // 如果是取色器工具
         if (this.currentTool === 'picker') {
-            const pixelX = gridX * this.pixelSize + this.displayOffset.x;
-            const pixelY = gridY * this.pixelSize + this.displayOffset.y;
+            // 计算精确的像素位置
+            const pixelX = Math.floor(gridX * this.pixelSize + this.displayOffset.x);
+            const pixelY = Math.floor(gridY * this.pixelSize + this.displayOffset.y);
             
             // 获取编辑画布上的颜色
             const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
@@ -1368,16 +1365,16 @@ class PixelSplitter {
         if (!this.editMode) return;
         
         const rect = this.editCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
         
         // 计算网格位置
         const gridX = Math.floor((x - this.displayOffset.x) / this.pixelSize);
         const gridY = Math.floor((y - this.displayOffset.y) / this.pixelSize);
         
-        // 计算像素位置
-        const pixelX = gridX * this.pixelSize + this.displayOffset.x;
-        const pixelY = gridY * this.pixelSize + this.displayOffset.y;
+        // 计算精确的像素位置
+        const pixelX = Math.floor(gridX * this.pixelSize + this.displayOffset.x);
+        const pixelY = Math.floor(gridY * this.pixelSize + this.displayOffset.y);
         
         // 清除之前的投影
         this.cursorCtx.clearRect(0, 0, this.width, this.height);
