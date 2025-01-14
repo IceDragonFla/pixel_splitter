@@ -756,6 +756,9 @@ class PixelSplitter {
         });
         document.getElementById(`${tool}Tool`).classList.add('active');
         
+        // 重置绘制模式
+        this.editCtx.globalCompositeOperation = 'source-over';
+        
         // 显示工具切换提示
         this.showToolTip(`已切换到${this.getToolName(tool)}`);
     }
@@ -899,35 +902,30 @@ class PixelSplitter {
 
         // 如果是取色器工具
         if (this.currentTool === 'picker') {
-            // 从主画布获取颜色
             const pixelX = gridX * this.pixelSize + this.displayOffset.x;
             const pixelY = gridY * this.pixelSize + this.displayOffset.y;
             
-            // 优先从编辑画布获取颜色
+            // 获取编辑画布上的颜色
             const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
             if (editPixel[3] > 0) { // 如果编辑画布上有颜色
                 const color = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
                 this.selectColor(color);
-            } else { // 如果编辑画布上没有颜色，从主画布获取
-                const mainPixel = this.mainCtx.getImageData(pixelX, pixelY, 1, 1).data;
-                if (mainPixel[3] > 0) {
-                    const color = `rgb(${mainPixel[0]}, ${mainPixel[1]}, ${mainPixel[2]})`;
-                    this.selectColor(color);
-                }
             }
             
             // 取色后自动切换回铅笔工具
             this.selectTool('pencil');
             return;
         }
-        
-        // 计算实际绘制位置
+
+        // 保存当前状态用于撤销/重做
+        if (!this.isDrawing) {
+            this.saveState();
+        }
+
+        // 计算像素位置
         const pixelX = gridX * this.pixelSize + this.displayOffset.x;
         const pixelY = gridY * this.pixelSize + this.displayOffset.y;
-        
-        // 保存当前状态
-        this.saveState();
-        
+
         // 设置绘制模式
         if (this.currentTool === 'eraser') {
             // 使用 globalCompositeOperation 来实现擦除
