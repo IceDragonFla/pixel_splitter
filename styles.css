@@ -78,4 +78,65 @@ input[type="file"] {
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
-} 
+}
+
+.magnifier {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border: 2px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+    display: none;
+    background: white;
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    z-index: 1000;
+}
+
+.magnifier canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.magnifier-crosshair {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.magnifier-crosshair::before,
+.magnifier-crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,0,0,0.5);
+}
+
+.magnifier-crosshair::before {
+    left: 50%;
+    top: 0;
+    width: 1px;
+    height: 100%;
+}
+
+.magnifier-crosshair::after {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1px;
+}
+
+.magnifier-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#magnifierZoom {
+    padding: 4px;
+    border-radius: 4px;
+}

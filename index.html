@@ -21,11 +21,24 @@
                 <button id="processBtn">处理图片</button>
                 <button id="downloadBtn">下载结果</button>
             </div>
+            <div class="magnifier-controls">
+                <button id="toggleMagnifier">开启放大镜</button>
+                <span>放大倍率: </span>
+                <select id="magnifierZoom">
+                    <option value="2">2x</option>
+                    <option value="4" selected>4x</option>
+                    <option value="8">8x</option>
+                </select>
+            </div>
         </div>
         
         <div class="canvas-container">
             <canvas id="mainCanvas"></canvas>
             <canvas id="guidelineCanvas"></canvas>
+            <div id="magnifier" class="magnifier">
+                <canvas id="magnifierCanvas"></canvas>
+                <div class="magnifier-crosshair"></div>
+            </div>
         </div>
 
         <div class="status-bar">

@@ -48,6 +48,17 @@ class PixelSplitter {
         this.originalWidth = 0;
         this.originalHeight = 0;
         
+        // 放大镜相关
+        this.magnifierEnabled = false;
+        this.magnifier = document.getElementById('magnifier');
+        this.magnifierCanvas = document.getElementById('magnifierCanvas');
+        this.magnifierCtx = this.magnifierCanvas.getContext('2d');
+        this.magnifierZoom = 4;
+        
+        // 设置放大镜画布大小
+        this.magnifierCanvas.width = 200;
+        this.magnifierCanvas.height = 200;
+        
         this.initEventListeners();
         this.drawGuidelines();
     }
@@ -101,6 +112,29 @@ class PixelSplitter {
         this.guidelineCanvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
         this.guidelineCanvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
         this.guidelineCanvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+
+        // 放大镜控制
+        document.getElementById('toggleMagnifier').addEventListener('click', () => {
+            this.magnifierEnabled = !this.magnifierEnabled;
+            document.getElementById('toggleMagnifier').textContent = 
+                this.magnifierEnabled ? '关闭放大镜' : '开启放大镜';
+            this.magnifier.style.display = this.magnifierEnabled ? 'block' : 'none';
+        });
+        
+        document.getElementById('magnifierZoom').addEventListener('change', (e) => {
+            this.magnifierZoom = parseInt(e.target.value);
+        });
+        
+        // 放大镜移动
+        this.guidelineCanvas.addEventListener('mousemove', this.updateMagnifier.bind(this));
+        this.guidelineCanvas.addEventListener('mouseleave', () => {
+            this.magnifier.style.display = 'none';
+        });
+        this.guidelineCanvas.addEventListener('mouseenter', () => {
+            if (this.magnifierEnabled) {
+                this.magnifier.style.display = 'block';
+            }
+        });
     }
 
     drawGuidelines() {
@@ -438,6 +472,72 @@ class PixelSplitter {
 
     handleImageDragEnd() {
         this.isDraggingImage = false;
+    }
+
+    // 添加放大镜更新方法
+    updateMagnifier(e) {
+        if (!this.magnifierEnabled || !this.originalImage) return;
+        
+        const rect = this.guidelineCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 更新放大镜位置
+        this.magnifier.style.left = (x + 20) + 'px';
+        this.magnifier.style.top = (y + 20) + 'px';
+        
+        // 清除放大镜画布
+        this.magnifierCtx.clearRect(0, 0, this.magnifierCanvas.width, this.magnifierCanvas.height);
+        
+        // 计算需要放大的区域
+        const zoomSize = this.magnifierCanvas.width / this.magnifierZoom;
+        const sourceX = x - zoomSize / 2;
+        const sourceY = y - zoomSize / 2;
+        
+        // 绘制放大的图像
+        this.magnifierCtx.save();
+        this.magnifierCtx.imageSmoothingEnabled = false;
+        
+        // 绘制原图
+        this.magnifierCtx.drawImage(
+            this.mainCanvas,
+            sourceX, sourceY, zoomSize, zoomSize,
+            0, 0, this.magnifierCanvas.width, this.magnifierCanvas.height
+        );
+        
+        // 绘制辅助线
+        this.magnifierCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+        this.magnifierCtx.lineWidth = 1;
+        
+        // 转换辅助线坐标到放大视图
+        const guidelines = this.guidelines;
+        const drawGuideline = (pos) => {
+            return (pos - sourceX) * this.magnifierZoom;
+        };
+        
+        // 绘制垂直辅助线
+        [guidelines.vertical.left, guidelines.vertical.center, guidelines.vertical.right].forEach(x => {
+            const lineX = drawGuideline(x);
+            if (lineX >= 0 && lineX <= this.magnifierCanvas.width) {
+                this.magnifierCtx.beginPath();
+                this.magnifierCtx.moveTo(lineX, 0);
+                this.magnifierCtx.lineTo(lineX, this.magnifierCanvas.height);
+                this.magnifierCtx.stroke();
+            }
+        });
+        
+        // 绘制水平辅助线
+        [guidelines.horizontal.top, guidelines.horizontal.center, guidelines.horizontal.bottom].forEach(y => {
+            const lineY = (y - sourceY) * this.magnifierZoom;
+            if (lineY >= 0 && lineY <= this.magnifierCanvas.height) {
+                this.magnifierCtx.beginPath();
+                this.magnifierCtx.moveTo(0, lineY);
+                this.magnifierCtx.lineTo(this.magnifierCanvas.width, lineY);
+                this.magnifierCtx.stroke();
+            }
+        });
+        
+        this.magnifierCtx.restore();
     }
 }
 
