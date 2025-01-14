@@ -115,6 +115,7 @@ class PixelSplitter {
             'KeyB': 'pencilTool',    // B 键切换到铅笔
             'KeyE': 'eraserTool',    // E 键切换到橡皮擦
             'KeyI': 'pickerTool',    // I 键切换到取色器
+            'KeyP': 'togglePreview', // P 键切换预览窗口
             'KeyZ': 'undo',          // Ctrl + Z 撤销
             'KeyY': 'redo',          // Ctrl + Y 重做
             'Escape': 'toggleEdit'    // Esc 切换编辑模式
@@ -137,6 +138,12 @@ class PixelSplitter {
         
         // 初始化预览窗口拖拽
         this.initPreviewDrag();
+        
+        // 添加预览窗口状态
+        this.previewEnabled = false;
+        
+        // 初始化时不显示参考线
+        this.guidelineCanvas.style.display = 'none';
     }
 
     initEventListeners() {
@@ -155,6 +162,10 @@ class PixelSplitter {
                         this.updateImageDisplay();
                         document.getElementById('imageSize').textContent = 
                             `${img.width} x ${img.height}`;
+                        
+                        // 显示参考线
+                        this.guidelineCanvas.style.display = 'block';
+                        this.drawGuidelines();
                     };
                     img.src = event.target.result;
                 };
@@ -215,6 +226,11 @@ class PixelSplitter {
         // 添加编辑模式切换按钮事件
         document.getElementById('toggleEditMode').addEventListener('click', () => {
             this.toggleEditMode();
+        });
+
+        // 添加预览窗口开关按钮事件
+        document.getElementById('togglePreview').addEventListener('click', () => {
+            this.togglePreview();
         });
     }
 
@@ -593,6 +609,11 @@ class PixelSplitter {
         this.offsetY = (this.height - this.originalHeight * this.scale) / 2;
         
         this.updateImageDisplay();
+        
+        // 重置时隐藏参考线
+        if (!this.originalImage) {
+            this.guidelineCanvas.style.display = 'none';
+        }
     }
 
     updateImageDisplay() {
@@ -990,19 +1011,20 @@ class PixelSplitter {
         }
         
         if (this.editMode && this.processedImage) {
-            // 显示预览窗口
-            this.previewWindow.classList.add('active');
-            this.updatePreview();
+            // 只在预览功能开启时显示预览窗口
+            if (this.previewEnabled) {
+                this.previewWindow.classList.add('active');
+                this.updatePreview();
+            }
+            
+            // 如果关闭编辑模式，重置当前工具状态
+            if (!this.editMode) {
+                this.isDrawing = false;
+                document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById('pencilTool').classList.add('active');
+            }
         } else {
-            // 隐藏预览窗口
             this.previewWindow.classList.remove('active');
-        }
-        
-        // 如果关闭编辑模式，重置当前工具状态
-        if (!this.editMode) {
-            this.isDrawing = false;
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('pencilTool').classList.add('active');
         }
     }
 
@@ -1160,6 +1182,12 @@ class PixelSplitter {
                         this.selectTool(shortcut.replace('Tool', ''));
                     }
                     break;
+                case 'togglePreview':
+                    if (this.editMode) {
+                        e.preventDefault();
+                        this.togglePreview();
+                    }
+                    break;
                 case 'toggleEdit':
                     e.preventDefault();
                     this.toggleEditMode();
@@ -1174,6 +1202,7 @@ class PixelSplitter {
             'pencilTool': { name: '铅笔', key: 'B' },
             'eraserTool': { name: '橡皮擦', key: 'E' },
             'pickerTool': { name: '取色器', key: 'I' },
+            'togglePreview': { name: '预览窗口', key: 'P' },
             'undoBtn': { name: '撤销', key: 'Ctrl+Z' },
             'redoBtn': { name: '重做', key: 'Ctrl+Y' }
         };
@@ -1248,6 +1277,24 @@ class PixelSplitter {
             this.originalImage.width * scale,
             this.originalImage.height * scale
         );
+    }
+
+    // 添加预览窗口开关方法
+    togglePreview() {
+        this.previewEnabled = !this.previewEnabled;
+        
+        // 更新按钮状态
+        const toggleBtn = document.getElementById('togglePreview');
+        toggleBtn.textContent = this.previewEnabled ? '隐藏预览' : '显示预览';
+        toggleBtn.classList.toggle('active', this.previewEnabled);
+        
+        // 显示/隐藏预览窗口
+        if (this.editMode && this.previewEnabled) {
+            this.previewWindow.classList.add('active');
+            this.updatePreview();
+        } else {
+            this.previewWindow.classList.remove('active');
+        }
     }
 }
 

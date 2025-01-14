@@ -406,3 +406,19 @@ input[type="file"] {
     height: 150px;
     object-fit: contain;
 }
+
+#togglePreview {
+    background: #607D8B;
+}
+
+#togglePreview.active {
+    background: #607D8B;
+}
+
+#togglePreview.active img {
+    filter: brightness(0) invert(1);
+}
+
+#togglePreview:hover {
+    background: #455A64;
+}
