@@ -90,6 +90,14 @@ class PixelSplitter {
         
         // 添加取色器相关属性
         this.isPicking = false;
+        
+        // 添加调色板相关属性
+        this.colorWheel = document.getElementById('colorWheel');
+        this.colorWheelCtx = this.colorWheel.getContext('2d');
+        this.isPickingFromWheel = false;
+        
+        // 初始化调色板
+        this.initColorWheel();
     }
 
     initEventListeners() {
@@ -727,6 +735,16 @@ class PixelSplitter {
         document.querySelectorAll('.color-item').forEach(item => {
             item.classList.toggle('active', item.style.backgroundColor === color);
         });
+        
+        // 更新颜色预览
+        document.getElementById('selectedColor').style.backgroundColor = color;
+        
+        // 更新 RGB 输入框
+        const rgb = color.match(/\d+/g).map(Number);
+        document.getElementById('redInput').value = rgb[0];
+        document.getElementById('greenInput').value = rgb[1];
+        document.getElementById('blueInput').value = rgb[2];
+        
         document.getElementById('currentColor').textContent = color;
     }
 
@@ -907,6 +925,98 @@ class PixelSplitter {
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('pencilTool').classList.add('active');
         }
+    }
+
+    initColorWheel() {
+        const width = this.colorWheel.width;
+        const height = this.colorWheel.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = Math.min(width, height) / 2;
+
+        // 绘制色轮
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance <= radius) {
+                    // 将坐标转换为色相和饱和度
+                    const hue = (Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2);
+                    const saturation = distance / radius;
+                    
+                    // 转换 HSV 到 RGB
+                    const rgb = this.hsvToRgb(hue, saturation, 1);
+                    
+                    this.colorWheelCtx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                    this.colorWheelCtx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+
+        // 添加事件监听
+        this.colorWheel.addEventListener('mousedown', (e) => {
+            this.isPickingFromWheel = true;
+            this.pickColorFromWheel(e);
+        });
+
+        this.colorWheel.addEventListener('mousemove', (e) => {
+            if (this.isPickingFromWheel) {
+                this.pickColorFromWheel(e);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            this.isPickingFromWheel = false;
+        });
+
+        // RGB 输入框事件
+        ['red', 'green', 'blue'].forEach(color => {
+            document.getElementById(`${color}Input`).addEventListener('change', (e) => {
+                const r = parseInt(document.getElementById('redInput').value);
+                const g = parseInt(document.getElementById('greenInput').value);
+                const b = parseInt(document.getElementById('blueInput').value);
+                this.selectColor(`rgb(${r}, ${g}, ${b})`);
+            });
+        });
+    }
+
+    pickColorFromWheel(e) {
+        const rect = this.colorWheel.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const imageData = this.colorWheelCtx.getImageData(x, y, 1, 1).data;
+        if (imageData[3] > 0) { // 确保点击的是有颜色的区域
+            const color = `rgb(${imageData[0]}, ${imageData[1]}, ${imageData[2]})`;
+            this.selectColor(color);
+        }
+    }
+
+    // HSV 转 RGB
+    hsvToRgb(h, s, v) {
+        let r, g, b;
+        const i = Math.floor(h * 6);
+        const f = h * 6 - i;
+        const p = v * (1 - s);
+        const q = v * (1 - f * s);
+        const t = v * (1 - (1 - f) * s);
+
+        switch (i % 6) {
+            case 0: r = v; g = t; b = p; break;
+            case 1: r = q; g = v; b = p; break;
+            case 2: r = p; g = v; b = t; break;
+            case 3: r = p; g = q; b = v; break;
+            case 4: r = t; g = p; b = v; break;
+            case 5: r = v; g = p; b = q; break;
+        }
+
+        return {
+            r: Math.round(r * 255),
+            g: Math.round(g * 255),
+            b: Math.round(b * 255)
+        };
     }
 }
 

@@ -65,6 +65,29 @@
             <div class="color-palette">
                 <div class="palette-header">色卡</div>
                 <div id="colorList" class="color-list"></div>
+                <div class="color-picker">
+                    <div class="palette-header">调色板</div>
+                    <div class="color-wheel-container">
+                        <canvas id="colorWheel" width="150" height="150"></canvas>
+                        <div class="color-preview">
+                            <div id="selectedColor"></div>
+                            <div class="rgb-inputs">
+                                <div class="rgb-input">
+                                    <label>R:</label>
+                                    <input type="number" id="redInput" min="0" max="255" value="0">
+                                </div>
+                                <div class="rgb-input">
+                                    <label>G:</label>
+                                    <input type="number" id="greenInput" min="0" max="255" value="0">
+                                </div>
+                                <div class="rgb-input">
+                                    <label>B:</label>
+                                    <input type="number" id="blueInput" min="0" max="255" value="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
