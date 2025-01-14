@@ -236,8 +236,13 @@ class PixelSplitter {
                 this.guidelines.vertical.center = x;
                 this.guidelines.vertical.left += diff;
                 this.guidelines.vertical.right += diff;
+
+                // 同步水平方向的距离
+                const verticalDistance = this.guidelines.vertical.right - this.guidelines.vertical.center;
+                this.guidelines.horizontal.top = this.guidelines.horizontal.center - verticalDistance;
+                this.guidelines.horizontal.bottom = this.guidelines.horizontal.center + verticalDistance;
             } else {
-                // 移动侧边线时,保持对称
+                // 移动侧边线时,保持对称且同步水平方向
                 const distance = Math.abs(x - this.guidelines.vertical.center);
                 if (this.selectedLine.position === 'left') {
                     this.guidelines.vertical.left = x;
@@ -246,8 +251,11 @@ class PixelSplitter {
                     this.guidelines.vertical.right = x;
                     this.guidelines.vertical.left = this.guidelines.vertical.center - distance;
                 }
+                // 同步水平方向的距离
+                this.guidelines.horizontal.top = this.guidelines.horizontal.center - distance;
+                this.guidelines.horizontal.bottom = this.guidelines.horizontal.center + distance;
             }
-        } else {
+        } else if (this.selectedLine.type === 'horizontal') {
             if (this.selectedLine.position === 'center') {
                 // 移动中心线时,同时移动上下辅助线
                 const oldCenter = this.guidelines.horizontal.center;
@@ -255,8 +263,13 @@ class PixelSplitter {
                 this.guidelines.horizontal.center = y;
                 this.guidelines.horizontal.top += diff;
                 this.guidelines.horizontal.bottom += diff;
+
+                // 同步垂直方向的距离
+                const horizontalDistance = this.guidelines.horizontal.bottom - this.guidelines.horizontal.center;
+                this.guidelines.vertical.left = this.guidelines.vertical.center - horizontalDistance;
+                this.guidelines.vertical.right = this.guidelines.vertical.center + horizontalDistance;
             } else {
-                // 移动上下线时,保持对称
+                // 移动上下线时,保持对称且同步垂直方向
                 const distance = Math.abs(y - this.guidelines.horizontal.center);
                 if (this.selectedLine.position === 'top') {
                     this.guidelines.horizontal.top = y;
@@ -265,6 +278,9 @@ class PixelSplitter {
                     this.guidelines.horizontal.bottom = y;
                     this.guidelines.horizontal.top = this.guidelines.horizontal.center - distance;
                 }
+                // 同步垂直方向的距离
+                this.guidelines.vertical.left = this.guidelines.vertical.center - distance;
+                this.guidelines.vertical.right = this.guidelines.vertical.center + distance;
             }
         }
 
