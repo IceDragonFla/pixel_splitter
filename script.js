@@ -99,16 +99,27 @@ class PixelSplitter {
         // 初始化调色板
         this.initColorWheel();
         
+        // 获取画布容器
+        const canvasContainer = document.querySelector('.canvas-container');
+        
         // 添加绘制范围画布
         this.boundaryCanvas = document.createElement('canvas');
         this.boundaryCanvas.id = 'boundaryCanvas';
         this.boundaryCtx = this.boundaryCanvas.getContext('2d');
         this.boundaryCanvas.width = this.width;
         this.boundaryCanvas.height = this.height;
-        
-        // 将绘制范围画布插入到 editCanvas 之前
-        const canvasContainer = document.querySelector('.canvas-container');
         canvasContainer.insertBefore(this.boundaryCanvas, this.editCanvas);
+        
+        // 添加画笔投影相关属性
+        this.cursorCanvas = document.createElement('canvas');
+        this.cursorCanvas.id = 'cursorCanvas';
+        this.cursorCtx = this.cursorCanvas.getContext('2d');
+        this.cursorCanvas.width = this.width;
+        this.cursorCanvas.height = this.height;
+        canvasContainer.appendChild(this.cursorCanvas);
+        
+        // 添加取色器预览相关属性
+        this.lastPickedColor = null;
         
         // 添加快捷键配置
         this.shortcuts = {
@@ -231,6 +242,12 @@ class PixelSplitter {
         // 添加预览窗口开关按钮事件
         document.getElementById('togglePreview').addEventListener('click', () => {
             this.togglePreview();
+        });
+
+        // 添加画笔投影事件
+        this.editCanvas.addEventListener('mousemove', this.updateCursor.bind(this));
+        this.editCanvas.addEventListener('mouseleave', () => {
+            this.cursorCtx.clearRect(0, 0, this.width, this.height);
         });
     }
 
@@ -1343,6 +1360,70 @@ class PixelSplitter {
             this.updatePreview();
         } else {
             this.previewWindow.classList.remove('active');
+        }
+    }
+
+    // 添加画笔投影更新方法
+    updateCursor(e) {
+        if (!this.editMode) return;
+        
+        const rect = this.editCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 计算网格位置
+        const gridX = Math.floor((x - this.displayOffset.x) / this.pixelSize);
+        const gridY = Math.floor((y - this.displayOffset.y) / this.pixelSize);
+        
+        // 计算像素位置
+        const pixelX = gridX * this.pixelSize + this.displayOffset.x;
+        const pixelY = gridY * this.pixelSize + this.displayOffset.y;
+        
+        // 清除之前的投影
+        this.cursorCtx.clearRect(0, 0, this.width, this.height);
+        
+        // 检查是否在有效的绘制范围内
+        if (gridX < 0 || gridY < 0 || 
+            gridX >= Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize) || 
+            gridY >= Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize)) {
+            return;
+        }
+        
+        // 绘制投影
+        if (this.currentTool === 'picker') {
+            // 取色器模式：显示当前像素的颜色
+            const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
+            if (editPixel[3] > 0) {
+                this.lastPickedColor = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
+            }
+            
+            // 绘制取色器预览框
+            this.cursorCtx.strokeStyle = 'white';
+            this.cursorCtx.lineWidth = 2;
+            this.cursorCtx.strokeRect(pixelX - 1, pixelY - 1, this.pixelSize + 2, this.pixelSize + 2);
+            this.cursorCtx.strokeStyle = 'black';
+            this.cursorCtx.lineWidth = 1;
+            this.cursorCtx.strokeRect(pixelX - 2, pixelY - 2, this.pixelSize + 4, this.pixelSize + 4);
+            
+            // 显示颜色预览
+            if (this.lastPickedColor) {
+                // 绘制颜色预览框
+                this.cursorCtx.fillStyle = this.lastPickedColor;
+                this.cursorCtx.fillRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
+                this.cursorCtx.strokeStyle = 'white';
+                this.cursorCtx.strokeRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
+            }
+        } else {
+            // 画笔/橡皮擦模式：显示工具预览
+            this.cursorCtx.fillStyle = this.currentTool === 'eraser' ? 
+                'rgba(255, 255, 255, 0.5)' : 
+                this.currentColor.replace('rgb', 'rgba').replace(')', ', 0.5)');
+            this.cursorCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+            
+            // 添加边框
+            this.cursorCtx.strokeStyle = this.currentTool === 'eraser' ? '#999' : this.currentColor;
+            this.cursorCtx.lineWidth = 1;
+            this.cursorCtx.strokeRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
         }
     }
 }
