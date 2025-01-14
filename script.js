@@ -477,10 +477,57 @@ class PixelSplitter {
     downloadImage() {
         if (!this.processedImage) return;
 
-        const link = document.createElement('a');
-        link.download = 'pixel_art.png';
-        link.href = this.processedImage;
-        link.click();
+        // 创建临时画布用于合并图层
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // 设置画布大小为处理后图片的实际大小
+        const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
+        const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
+        tempCanvas.width = processedWidth;
+        tempCanvas.height = processedHeight;
+        
+        // 绘制处理后的图片
+        const img = new Image();
+        img.onload = () => {
+            // 禁用图像平滑
+            tempCtx.imageSmoothingEnabled = false;
+            
+            // 绘制处理后的图片
+            tempCtx.drawImage(
+                img,
+                0, 0, processedWidth, processedHeight
+            );
+            
+            // 获取编辑画布的内容
+            const editData = this.editCtx.getImageData(
+                this.displayOffset.x,
+                this.displayOffset.y,
+                processedWidth * this.pixelSize,
+                processedHeight * this.pixelSize
+            );
+            
+            // 创建临时画布来缩放编辑内容
+            const editTempCanvas = document.createElement('canvas');
+            const editTempCtx = editTempCanvas.getContext('2d');
+            editTempCanvas.width = processedWidth * this.pixelSize;
+            editTempCanvas.height = processedHeight * this.pixelSize;
+            editTempCtx.putImageData(editData, 0, 0);
+            
+            // 将编辑内容缩放到正确大小并合并
+            tempCtx.drawImage(
+                editTempCanvas,
+                0, 0, editTempCanvas.width, editTempCanvas.height,
+                0, 0, processedWidth, processedHeight
+            );
+            
+            // 导出合并后的图片
+            const link = document.createElement('a');
+            link.download = 'pixel_art.png';
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+        };
+        img.src = this.processedImage;
     }
 
     resetImagePosition() {
@@ -696,15 +743,20 @@ class PixelSplitter {
         const relativeX = x - this.displayOffset.x;
         const relativeY = y - this.displayOffset.y;
         
-        // 计算像素位置，确保对齐到像素网格
-        const pixelX = Math.floor(relativeX / this.pixelSize) * this.pixelSize + this.displayOffset.x;
-        const pixelY = Math.floor(relativeY / this.pixelSize) * this.pixelSize + this.displayOffset.y;
+        // 计算网格位置
+        const gridX = Math.floor(relativeX / this.pixelSize);
+        const gridY = Math.floor(relativeY / this.pixelSize);
         
         // 检查是否在有效的绘制范围内
-        if (relativeX < 0 || relativeY < 0 || 
-            pixelX >= this.width || pixelY >= this.height) {
+        if (gridX < 0 || gridY < 0 || 
+            gridX >= Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize) || 
+            gridY >= Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize)) {
             return;
         }
+        
+        // 计算实际绘制位置
+        const pixelX = gridX * this.pixelSize + this.displayOffset.x;
+        const pixelY = gridY * this.pixelSize + this.displayOffset.y;
         
         // 保存当前状态
         this.saveState();
