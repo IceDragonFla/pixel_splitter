@@ -222,14 +222,14 @@ class PixelSplitter {
             height: this.originalHeight * this.scale
         };
 
-        // 计算标准像素大小（使用辅助线之间的距离）
+        // 计算中心交叉区域的四个方格大小
         const standardPixelSize = {
-            width: (this.guidelines.vertical.right - this.guidelines.vertical.left) / this.scale,
-            height: (this.guidelines.horizontal.bottom - this.guidelines.horizontal.top) / this.scale
+            width: (this.guidelines.vertical.right - this.guidelines.vertical.left) / 2, // 除以2因为是两个方格
+            height: (this.guidelines.horizontal.bottom - this.guidelines.horizontal.top) / 2  // 除以2因为是两个方格
         };
 
         // 使用较小的值作为标准像素大小，确保是正方形
-        const pixelSize = Math.min(standardPixelSize.width, standardPixelSize.height);
+        const pixelSize = Math.min(standardPixelSize.width, standardPixelSize.height) / this.scale; // 转换回原图尺寸
 
         // 计算整个图片应该划分的像素数量
         const cols = Math.floor(this.originalWidth / pixelSize);
