@@ -827,6 +827,49 @@ class PixelSplitter {
         this.editCanvas.style.pointerEvents = this.editMode ? 'all' : 'none';
         this.guidelineCanvas.style.pointerEvents = this.editMode ? 'none' : 'all';
         
+        if (this.editMode && this.processedImage) {
+            // 进入编辑模式时，将处理后的图片复制到编辑画布
+            const img = new Image();
+            img.onload = () => {
+                // 清空编辑画布
+                this.editCtx.clearRect(0, 0, this.width, this.height);
+                
+                // 计算图片显示区域
+                const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
+                const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
+                
+                // 创建临时画布来处理图片
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = processedWidth;
+                tempCanvas.height = processedHeight;
+                
+                // 在临时画布上绘制处理后的图片
+                tempCtx.drawImage(img, 0, 0);
+                
+                // 将图片绘制到编辑画布上，保持像素大小
+                this.editCtx.imageSmoothingEnabled = false;
+                this.editCtx.drawImage(
+                    tempCanvas,
+                    0, 0, processedWidth, processedHeight,
+                    this.displayOffset.x, this.displayOffset.y,
+                    processedWidth * this.pixelSize, processedHeight * this.pixelSize
+                );
+                
+                // 保存初始状态用于撤销/重做
+                this.history = [this.editCtx.getImageData(0, 0, this.width, this.height)];
+                this.historyIndex = 0;
+                this.updateHistoryButtons();
+            };
+            img.src = this.processedImage;
+        } else if (!this.editMode) {
+            // 关闭编辑模式时，清空编辑画布
+            this.editCtx.clearRect(0, 0, this.width, this.height);
+            this.history = [];
+            this.historyIndex = -1;
+            this.updateHistoryButtons();
+        }
+        
         // 如果关闭编辑模式，重置当前工具状态
         if (!this.editMode) {
             this.isDrawing = false;
