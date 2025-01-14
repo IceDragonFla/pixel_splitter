@@ -994,37 +994,89 @@ class PixelSplitter {
         toggleBtn.textContent = this.editMode ? '关闭编辑' : '开启编辑';
         toggleBtn.classList.toggle('active', this.editMode);
         
-        // 更新工具栏和色卡显示
+        // 更新工具栏显示状态
         document.querySelector('.drawing-tools').classList.toggle('active', this.editMode);
         document.querySelector('.color-palette').classList.toggle('active', this.editMode);
         
-        // 更新画布事件处理
+        // 更新画布事件状态
         this.editCanvas.style.pointerEvents = this.editMode ? 'all' : 'none';
-        this.guidelineCanvas.style.pointerEvents = this.editMode ? 'none' : 'all';
         
-        // 显示/隐藏辅助线
-        if (this.editMode) {
-            this.guidelineCanvas.style.display = 'none';
-        } else {
-            this.guidelineCanvas.style.display = 'block';
+        // 处理参考线显示
+        this.guidelineCanvas.style.display = this.editMode ? 'none' : 'block';
+        if (!this.editMode) {
             this.drawGuidelines();
         }
         
         if (this.editMode && this.processedImage) {
-            // 只在预览功能开启时显示预览窗口
+            // 显示绘制范围
+            this.boundaryCanvas.style.display = 'block';
+            this.drawBoundary();
+            
+            // 进入编辑模式时，将处理后的图片映射到编辑画布
+            const img = new Image();
+            img.onload = () => {
+                // 清空编辑画布
+                this.editCtx.clearRect(0, 0, this.width, this.height);
+                
+                // 计算图片显示区域
+                const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
+                const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
+                
+                // 禁用平滑处理以保持像素清晰
+                this.editCtx.imageSmoothingEnabled = false;
+                
+                // 将图片映射到编辑画布
+                this.editCtx.drawImage(
+                    img,
+                    this.displayOffset.x,
+                    this.displayOffset.y,
+                    processedWidth * this.pixelSize,
+                    processedHeight * this.pixelSize
+                );
+                
+                // 清空主画布上的处理后图片
+                this.mainCtx.clearRect(0, 0, this.width, this.height);
+                
+                // 保存初始状态用于撤销/重做
+                this.history = [this.editCtx.getImageData(0, 0, this.width, this.height)];
+                this.historyIndex = 0;
+                this.updateHistoryButtons();
+                
+                // 生成初始颜色调色板
+                this.generateColorPalette();
+            };
+            img.src = this.processedImage;
+            
+            // 显示预览窗口（如果启用）
             if (this.previewEnabled) {
                 this.previewWindow.classList.add('active');
                 this.updatePreview();
             }
-            
-            // 如果关闭编辑模式，重置当前工具状态
-            if (!this.editMode) {
-                this.isDrawing = false;
-                document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-                document.getElementById('pencilTool').classList.add('active');
-            }
         } else {
+            // 关闭编辑模式时的清理工作
+            this.boundaryCanvas.style.display = 'none';
+            
+            // 如果有编辑后的图片，将其绘制回主画布
+            if (this.editMode === false && this.history.length > 0) {
+                const editedImage = this.editCanvas.toDataURL();
+                const img = new Image();
+                img.onload = () => {
+                    this.mainCtx.drawImage(img, 0, 0);
+                    // 清空编辑画布
+                    this.editCtx.clearRect(0, 0, this.width, this.height);
+                };
+                img.src = editedImage;
+            }
+            
+            this.history = [];
+            this.historyIndex = -1;
+            this.updateHistoryButtons();
             this.previewWindow.classList.remove('active');
+            
+            // 重置工具状态
+            this.currentTool = 'pencil';
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('pencilTool').classList.add('active');
         }
     }
 
