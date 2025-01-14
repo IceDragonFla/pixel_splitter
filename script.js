@@ -59,6 +59,32 @@ class PixelSplitter {
         this.magnifierCanvas.width = 200;
         this.magnifierCanvas.height = 200;
         
+        // 编辑相关属性
+        this.editCanvas = document.getElementById('editCanvas');
+        this.editCtx = this.editCanvas.getContext('2d');
+        this.editCanvas.width = this.width;
+        this.editCanvas.height = this.height;
+        
+        // 默认禁用编辑画布的事件
+        this.editCanvas.style.pointerEvents = 'none';
+        
+        this.currentTool = 'pencil';
+        this.currentColor = null;
+        this.isDrawing = false;
+        this.pixelSize = 1;
+        this.colorPalette = new Set();
+        
+        // 撤销/重做历史
+        this.history = [];
+        this.historyIndex = -1;
+        this.maxHistory = 50;
+        
+        // 添加编辑模式属性
+        this.editMode = false;
+        
+        // 初始化编辑工具
+        this.initEditTools();
+        
         this.initEventListeners();
         this.drawGuidelines();
     }
@@ -134,6 +160,11 @@ class PixelSplitter {
             if (this.magnifierEnabled) {
                 this.magnifier.style.display = 'block';
             }
+        });
+
+        // 添加编辑模式切换按钮事件
+        document.getElementById('toggleEditMode').addEventListener('click', () => {
+            this.toggleEditMode();
         });
     }
 
@@ -348,6 +379,20 @@ class PixelSplitter {
             this.mainCtx.drawImage(img, displayX, displayY, displayWidth, displayHeight);
         };
         img.src = this.processedImage;
+
+        // 处理完成后清空编辑画布
+        this.editCtx.clearRect(0, 0, this.width, this.height);
+        this.history = [];
+        this.historyIndex = -1;
+        this.updateHistoryButtons();
+        
+        // 如果在编辑模式，关闭编辑模式
+        if (this.editMode) {
+            this.toggleEditMode();
+        }
+        
+        // 生成色卡
+        this.generateColorPalette(tempCanvas);
     }
 
     // 改进的主导颜色计算方法
@@ -538,6 +583,169 @@ class PixelSplitter {
         });
         
         this.magnifierCtx.restore();
+    }
+
+    // 添加编辑工具初始化方法
+    initEditTools() {
+        // 工具选择
+        document.getElementById('pencilTool').addEventListener('click', () => this.selectTool('pencil'));
+        document.getElementById('eraserTool').addEventListener('click', () => this.selectTool('eraser'));
+        
+        // 撤销/重做
+        document.getElementById('undoBtn').addEventListener('click', () => this.undo());
+        document.getElementById('redoBtn').addEventListener('click', () => this.redo());
+        
+        // 绘制事件
+        this.editCanvas.addEventListener('mousedown', this.startDrawing.bind(this));
+        this.editCanvas.addEventListener('mousemove', this.draw.bind(this));
+        this.editCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+        this.editCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
+    }
+
+    // 工具选择方法
+    selectTool(tool) {
+        this.currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`${tool}Tool`).classList.add('active');
+    }
+
+    // 添加色卡生成方法
+    generateColorPalette(canvas) {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        this.colorPalette.clear();
+        
+        // 收集所有颜色
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i + 3] > 0) { // 不是完全透明的像素
+                const color = `rgb(${data[i]}, ${data[i + 1]}, ${data[i + 2]})`;
+                this.colorPalette.add(color);
+            }
+        }
+        
+        // 更新色卡显示
+        this.updateColorPaletteDisplay();
+    }
+
+    // 更新色卡显示
+    updateColorPaletteDisplay() {
+        const colorList = document.getElementById('colorList');
+        colorList.innerHTML = '';
+        
+        this.colorPalette.forEach(color => {
+            const colorItem = document.createElement('div');
+            colorItem.className = 'color-item';
+            colorItem.style.backgroundColor = color;
+            colorItem.addEventListener('click', () => this.selectColor(color));
+            colorList.appendChild(colorItem);
+        });
+    }
+
+    // 颜色选择方法
+    selectColor(color) {
+        this.currentColor = color;
+        document.querySelectorAll('.color-item').forEach(item => {
+            item.classList.toggle('active', item.style.backgroundColor === color);
+        });
+        document.getElementById('currentColor').textContent = color;
+    }
+
+    // 绘制相关方法
+    startDrawing(e) {
+        if (!this.editMode || (!this.currentColor && this.currentTool === 'pencil')) return;
+        
+        this.isDrawing = true;
+        this.draw(e);
+    }
+
+    draw(e) {
+        if (!this.editMode || !this.isDrawing) return;
+        
+        const rect = this.editCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 计算像素位置
+        const pixelX = Math.floor(x / this.pixelSize) * this.pixelSize;
+        const pixelY = Math.floor(y / this.pixelSize) * this.pixelSize;
+        
+        // 保存当前状态
+        this.saveState();
+        
+        // 绘制
+        this.editCtx.fillStyle = this.currentTool === 'eraser' ? 'transparent' : this.currentColor;
+        if (this.currentTool === 'eraser') {
+            this.editCtx.clearRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        } else {
+            this.editCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        }
+    }
+
+    stopDrawing() {
+        this.isDrawing = false;
+    }
+
+    // 历史记录相关方法
+    saveState() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.historyIndex + 1);
+        }
+        
+        this.history.push(this.editCtx.getImageData(0, 0, this.width, this.height));
+        if (this.history.length > this.maxHistory) {
+            this.history.shift();
+        }
+        
+        this.historyIndex = this.history.length - 1;
+        this.updateHistoryButtons();
+    }
+
+    undo() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            this.editCtx.putImageData(this.history[this.historyIndex], 0, 0);
+            this.updateHistoryButtons();
+        }
+    }
+
+    redo() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            this.editCtx.putImageData(this.history[this.historyIndex], 0, 0);
+            this.updateHistoryButtons();
+        }
+    }
+
+    updateHistoryButtons() {
+        document.getElementById('undoBtn').disabled = this.historyIndex <= 0;
+        document.getElementById('redoBtn').disabled = this.historyIndex >= this.history.length - 1;
+    }
+
+    // 添加编辑模式切换方法
+    toggleEditMode() {
+        this.editMode = !this.editMode;
+        
+        // 更新按钮状态
+        const toggleBtn = document.getElementById('toggleEditMode');
+        toggleBtn.textContent = this.editMode ? '关闭编辑' : '开启编辑';
+        toggleBtn.classList.toggle('active', this.editMode);
+        
+        // 更新工具栏和色卡显示
+        document.querySelector('.drawing-tools').classList.toggle('active', this.editMode);
+        document.querySelector('.color-palette').classList.toggle('active', this.editMode);
+        
+        // 更新画布事件处理
+        this.editCanvas.style.pointerEvents = this.editMode ? 'all' : 'none';
+        this.guidelineCanvas.style.pointerEvents = this.editMode ? 'none' : 'all';
+        
+        // 如果关闭编辑模式，重置当前工具状态
+        if (!this.editMode) {
+            this.isDrawing = false;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('pencilTool').classList.add('active');
+        }
     }
 }
 
