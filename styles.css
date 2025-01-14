@@ -408,7 +408,7 @@ input[type="file"] {
 }
 
 #togglePreview {
-    background: #607D8B;
+    background: white;
 }
 
 #togglePreview.active {
@@ -420,5 +420,9 @@ input[type="file"] {
 }
 
 #togglePreview:hover {
+    background: #e0e0e0;
+}
+
+#togglePreview.active:hover {
     background: #455A64;
 }

@@ -1283,9 +1283,8 @@ class PixelSplitter {
     togglePreview() {
         this.previewEnabled = !this.previewEnabled;
         
-        // 更新按钮状态
+        // 更新按钮状态（只切换 active 类，不改变文字）
         const toggleBtn = document.getElementById('togglePreview');
-        toggleBtn.textContent = this.previewEnabled ? '隐藏预览' : '显示预览';
         toggleBtn.classList.toggle('active', this.previewEnabled);
         
         // 显示/隐藏预览窗口
