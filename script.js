@@ -827,6 +827,14 @@ class PixelSplitter {
         this.editCanvas.style.pointerEvents = this.editMode ? 'all' : 'none';
         this.guidelineCanvas.style.pointerEvents = this.editMode ? 'none' : 'all';
         
+        // 显示/隐藏辅助线
+        if (this.editMode) {
+            this.guidelineCanvas.style.display = 'none';
+        } else {
+            this.guidelineCanvas.style.display = 'block';
+            this.drawGuidelines();
+        }
+        
         if (this.editMode && this.processedImage) {
             // 进入编辑模式时，将处理后的图片复制到编辑画布
             const img = new Image();
