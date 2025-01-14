@@ -109,6 +109,19 @@ class PixelSplitter {
         // 将绘制范围画布插入到 editCanvas 之前
         const canvasContainer = document.querySelector('.canvas-container');
         canvasContainer.insertBefore(this.boundaryCanvas, this.editCanvas);
+        
+        // 添加快捷键配置
+        this.shortcuts = {
+            'KeyB': 'pencilTool',    // B 键切换到铅笔
+            'KeyE': 'eraserTool',    // E 键切换到橡皮擦
+            'KeyI': 'pickerTool',    // I 键切换到取色器
+            'KeyZ': 'undo',          // Ctrl + Z 撤销
+            'KeyY': 'redo',          // Ctrl + Y 重做
+            'Escape': 'toggleEdit'    // Esc 切换编辑模式
+        };
+        
+        // 初始化快捷键
+        this.initShortcuts();
     }
 
     initEventListeners() {
@@ -702,8 +715,67 @@ class PixelSplitter {
     // 工具选择方法
     selectTool(tool) {
         this.currentTool = tool;
-        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
         document.getElementById(`${tool}Tool`).classList.add('active');
+        
+        // 显示工具切换提示
+        this.showToolTip(`已切换到${this.getToolName(tool)}`);
+    }
+
+    // 添加工具名称转换方法
+    getToolName(tool) {
+        const toolNames = {
+            'pencil': '铅笔',
+            'eraser': '橡皮擦',
+            'picker': '取色器'
+        };
+        return toolNames[tool] || tool;
+    }
+
+    // 添加提示信息显示方法
+    showToolTip(message) {
+        // 创建或获取提示元素
+        let tooltip = document.getElementById('toolTip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'toolTip';
+            document.body.appendChild(tooltip);
+            
+            // 添加提示框样式
+            const style = document.createElement('style');
+            style.textContent = `
+                #toolTip {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.3s;
+                    z-index: 1000;
+                }
+                #toolTip.show {
+                    opacity: 1;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // 显示提示信息
+        tooltip.textContent = message;
+        tooltip.classList.add('show');
+        
+        // 2秒后隐藏提示
+        setTimeout(() => {
+            tooltip.classList.remove('show');
+        }, 2000);
     }
 
     // 添加色卡生成方法
@@ -1063,6 +1135,45 @@ class PixelSplitter {
         this.boundaryCtx.fillRect(0, y, x, height);
         // 右侧遮罩
         this.boundaryCtx.fillRect(x + width, y, this.width - (x + width), height);
+    }
+
+    // 添加快捷键初始化方法
+    initShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // 如果正在输入，不触发快捷键
+            if (e.target.tagName === 'INPUT') return;
+
+            const shortcut = this.shortcuts[e.code];
+            if (!shortcut) return;
+
+            // 处理组合键
+            if (e.code === 'KeyZ' && e.ctrlKey) {
+                e.preventDefault();
+                if (this.editMode) this.undo();
+                return;
+            }
+            if (e.code === 'KeyY' && e.ctrlKey) {
+                e.preventDefault();
+                if (this.editMode) this.redo();
+                return;
+            }
+
+            // 处理普通快捷键
+            switch (shortcut) {
+                case 'pencilTool':
+                case 'eraserTool':
+                case 'pickerTool':
+                    if (this.editMode) {
+                        e.preventDefault();
+                        this.selectTool(shortcut.replace('Tool', ''));
+                    }
+                    break;
+                case 'toggleEdit':
+                    e.preventDefault();
+                    this.toggleEditMode();
+                    break;
+            }
+        });
     }
 }
 
