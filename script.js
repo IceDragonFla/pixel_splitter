@@ -87,6 +87,9 @@ class PixelSplitter {
         
         this.initEventListeners();
         this.drawGuidelines();
+        
+        // 添加取色器相关属性
+        this.isPicking = false;
     }
 
     initEventListeners() {
@@ -672,6 +675,9 @@ class PixelSplitter {
         this.editCanvas.addEventListener('mousemove', this.draw.bind(this));
         this.editCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
         this.editCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
+        
+        // 添加取色器工具
+        document.getElementById('pickerTool').addEventListener('click', () => this.selectTool('picker'));
     }
 
     // 工具选择方法
@@ -751,6 +757,23 @@ class PixelSplitter {
         if (gridX < 0 || gridY < 0 || 
             gridX >= Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize) || 
             gridY >= Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize)) {
+            return;
+        }
+
+        // 如果是取色器工具
+        if (this.currentTool === 'picker') {
+            // 获取点击位置的颜色
+            const pixelData = this.mainCtx.getImageData(
+                gridX * this.pixelSize + this.displayOffset.x,
+                gridY * this.pixelSize + this.displayOffset.y,
+                1, 1
+            ).data;
+            
+            const color = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
+            this.selectColor(color);
+            
+            // 取色后自动切换回铅笔工具
+            this.selectTool('pencil');
             return;
         }
         
@@ -846,22 +869,14 @@ class PixelSplitter {
                 const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
                 const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
                 
-                // 创建临时画布来处理图片
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = processedWidth;
-                tempCanvas.height = processedHeight;
-                
-                // 在临时画布上绘制处理后的图片
-                tempCtx.drawImage(img, 0, 0);
-                
-                // 将图片绘制到编辑画布上，保持像素大小
+                // 将图片直接绘制到编辑画布上
                 this.editCtx.imageSmoothingEnabled = false;
                 this.editCtx.drawImage(
-                    tempCanvas,
-                    0, 0, processedWidth, processedHeight,
-                    this.displayOffset.x, this.displayOffset.y,
-                    processedWidth * this.pixelSize, processedHeight * this.pixelSize
+                    img,
+                    this.displayOffset.x,
+                    this.displayOffset.y,
+                    processedWidth * this.pixelSize,
+                    processedHeight * this.pixelSize
                 );
                 
                 // 保存初始状态用于撤销/重做

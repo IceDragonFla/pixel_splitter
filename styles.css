@@ -149,6 +149,11 @@ input[type="file"] {
 
 .drawing-tools {
     display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 4px;
 }
 
 .drawing-tools.active {
@@ -248,4 +253,8 @@ input[type="file"] {
 
 #toggleEditMode.active:hover {
     background: #1976D2;
+}
+
+#pickerTool.active {
+    background: #9C27B0;
 }
