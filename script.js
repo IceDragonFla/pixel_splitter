@@ -122,6 +122,21 @@ class PixelSplitter {
         
         // 初始化快捷键
         this.initShortcuts();
+        
+        // 添加预览相关属性
+        this.previewCanvas = document.getElementById('previewCanvas');
+        this.previewCtx = this.previewCanvas.getContext('2d');
+        this.previewWindow = document.getElementById('previewWindow');
+        
+        // 设置预览画布大小
+        this.previewCanvas.width = 200;
+        this.previewCanvas.height = 150;
+        
+        // 初始化工具提示
+        this.initToolTips();
+        
+        // 初始化预览窗口拖拽
+        this.initPreviewDrag();
     }
 
     initEventListeners() {
@@ -968,42 +983,12 @@ class PixelSplitter {
         }
         
         if (this.editMode && this.processedImage) {
-            // 显示绘制范围
-            this.boundaryCanvas.style.display = 'block';
-            this.drawBoundary();
-            
-            // 进入编辑模式时，将处理后的图片复制到编辑画布
-            const img = new Image();
-            img.onload = () => {
-                // 清空编辑画布
-                this.editCtx.clearRect(0, 0, this.width, this.height);
-                
-                // 计算图片显示区域
-                const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
-                const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
-                
-                // 将图片直接绘制到编辑画布上
-                this.editCtx.imageSmoothingEnabled = false;
-                this.editCtx.drawImage(
-                    img,
-                    this.displayOffset.x,
-                    this.displayOffset.y,
-                    processedWidth * this.pixelSize,
-                    processedHeight * this.pixelSize
-                );
-                
-                // 保存初始状态用于撤销/重做
-                this.history = [this.editCtx.getImageData(0, 0, this.width, this.height)];
-                this.historyIndex = 0;
-                this.updateHistoryButtons();
-            };
-            img.src = this.processedImage;
-        } else if (!this.editMode) {
-            // 关闭编辑模式时，清空编辑画布
-            this.editCtx.clearRect(0, 0, this.width, this.height);
-            this.history = [];
-            this.historyIndex = -1;
-            this.updateHistoryButtons();
+            // 显示预览窗口
+            this.previewWindow.classList.add('active');
+            this.updatePreview();
+        } else {
+            // 隐藏预览窗口
+            this.previewWindow.classList.remove('active');
         }
         
         // 如果关闭编辑模式，重置当前工具状态
@@ -1174,6 +1159,88 @@ class PixelSplitter {
                     break;
             }
         });
+    }
+
+    // 添加工具提示初始化方法
+    initToolTips() {
+        const toolTips = {
+            'pencilTool': { name: '铅笔', key: 'B' },
+            'eraserTool': { name: '橡皮擦', key: 'E' },
+            'pickerTool': { name: '取色器', key: 'I' },
+            'undoBtn': { name: '撤销', key: 'Ctrl+Z' },
+            'redoBtn': { name: '重做', key: 'Ctrl+Y' }
+        };
+
+        Object.entries(toolTips).forEach(([id, info]) => {
+            const button = document.getElementById(id);
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tool-tooltip';
+            tooltip.innerHTML = `${info.name}<span class="shortcut-key">${info.key}</span>`;
+            button.appendChild(tooltip);
+        });
+    }
+
+    // 添加预览窗口拖拽功能
+    initPreviewDrag() {
+        const header = this.previewWindow.querySelector('.preview-header');
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = this.previewWindow.offsetLeft;
+            initialY = this.previewWindow.offsetTop;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            const newX = initialX + dx;
+            const newY = initialY + dy;
+
+            // 限制在画布范围内
+            const container = document.querySelector('.canvas-container');
+            const maxX = container.clientWidth - this.previewWindow.clientWidth;
+            const maxY = container.clientHeight - this.previewWindow.clientHeight;
+
+            this.previewWindow.style.left = `${Math.max(0, Math.min(maxX, newX))}px`;
+            this.previewWindow.style.top = `${Math.max(0, Math.min(maxY, newY))}px`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+    }
+
+    // 添加预览更新方法
+    updatePreview() {
+        if (!this.originalImage) return;
+        
+        // 清空预览画布
+        this.previewCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        
+        // 计算缩放比例以适应预览窗口
+        const scale = Math.min(
+            this.previewCanvas.width / this.originalImage.width,
+            this.previewCanvas.height / this.originalImage.height
+        );
+        
+        // 计算居中位置
+        const x = (this.previewCanvas.width - this.originalImage.width * scale) / 2;
+        const y = (this.previewCanvas.height - this.originalImage.height * scale) / 2;
+        
+        // 绘制预览图
+        this.previewCtx.drawImage(
+            this.originalImage,
+            x, y,
+            this.originalImage.width * scale,
+            this.originalImage.height * scale
+        );
     }
 }
 
