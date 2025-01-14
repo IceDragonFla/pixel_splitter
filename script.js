@@ -98,6 +98,17 @@ class PixelSplitter {
         
         // 初始化调色板
         this.initColorWheel();
+        
+        // 添加绘制范围画布
+        this.boundaryCanvas = document.createElement('canvas');
+        this.boundaryCanvas.id = 'boundaryCanvas';
+        this.boundaryCtx = this.boundaryCanvas.getContext('2d');
+        this.boundaryCanvas.width = this.width;
+        this.boundaryCanvas.height = this.height;
+        
+        // 将绘制范围画布插入到 editCanvas 之前
+        const canvasContainer = document.querySelector('.canvas-container');
+        canvasContainer.insertBefore(this.boundaryCanvas, this.editCanvas);
     }
 
     initEventListeners() {
@@ -885,6 +896,10 @@ class PixelSplitter {
         }
         
         if (this.editMode && this.processedImage) {
+            // 显示绘制范围
+            this.boundaryCanvas.style.display = 'block';
+            this.drawBoundary();
+            
             // 进入编辑模式时，将处理后的图片复制到编辑画布
             const img = new Image();
             img.onload = () => {
@@ -1018,6 +1033,37 @@ class PixelSplitter {
             b: Math.round(b * 255)
         };
     }
+
+    // 添加绘制范围标记方法
+    drawBoundary() {
+        this.boundaryCtx.clearRect(0, 0, this.width, this.height);
+        
+        // 计算可绘制区域
+        const processedWidth = Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize);
+        const processedHeight = Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize);
+        
+        const x = this.displayOffset.x;
+        const y = this.displayOffset.y;
+        const width = processedWidth * this.pixelSize;
+        const height = processedHeight * this.pixelSize;
+        
+        // 绘制边界
+        this.boundaryCtx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        this.boundaryCtx.lineWidth = 1;
+        this.boundaryCtx.setLineDash([5, 5]);
+        this.boundaryCtx.strokeRect(x - 1, y - 1, width + 2, height + 2);
+        
+        // 添加半透明遮罩
+        this.boundaryCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        // 上方遮罩
+        this.boundaryCtx.fillRect(0, 0, this.width, y);
+        // 下方遮罩
+        this.boundaryCtx.fillRect(0, y + height, this.width, this.height - (y + height));
+        // 左侧遮罩
+        this.boundaryCtx.fillRect(0, y, x, height);
+        // 右侧遮罩
+        this.boundaryCtx.fillRect(x + width, y, this.width - (x + width), height);
+    }
 }
 
 // 初始化应用
@@ -1033,4 +1079,20 @@ window.onload = () => {
     document.getElementById('downloadBtn').addEventListener('click', () => {
         pixelSplitter.downloadImage();
     });
-}; 
+};
+
+// 添加绘制范围画布的样式
+const style = document.createElement('style');
+style.textContent = `
+    #boundaryCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        pointer-events: none;
+        display: none;
+    }
+`;
+document.head.appendChild(style); 

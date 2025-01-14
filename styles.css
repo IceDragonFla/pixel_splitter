@@ -266,52 +266,80 @@ input[type="file"] {
 }
 
 .color-picker {
-    margin-top: 10px;
+    margin-top: 15px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .color-wheel-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
+    padding: 10px;
 }
 
 #colorWheel {
     border-radius: 50%;
     cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .color-preview {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
+    padding: 10px;
+    background: #f8f8f8;
+    border-radius: 4px;
 }
 
 #selectedColor {
-    width: 50px;
-    height: 50px;
-    border-radius: 25px;
-    border: 2px solid #ddd;
+    width: 60px;
+    height: 60px;
+    border-radius: 30px;
+    border: 3px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .rgb-inputs {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     justify-content: center;
     width: 100%;
+    padding: 8px;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .rgb-input {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+}
+
+.rgb-input label {
+    font-weight: bold;
+    color: #666;
+    min-width: 18px;
 }
 
 .rgb-input input {
-    width: 50px;
-    padding: 2px 5px;
+    width: 45px;
+    padding: 4px;
     border: 1px solid #ddd;
     border-radius: 3px;
+    text-align: center;
+    font-family: monospace;
+}
+
+.rgb-input input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76,175,80,0.2);
 }
