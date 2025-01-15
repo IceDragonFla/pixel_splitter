@@ -126,6 +126,7 @@ class PixelSplitter {
             'KeyB': 'pencilTool',    // B 键切换到铅笔
             'KeyE': 'eraserTool',    // E 键切换到橡皮擦
             'KeyI': 'pickerTool',    // I 键切换到取色器
+            'KeyS': 'selectTool',    // S 键切换到选区工具
             'KeyP': 'togglePreview', // P 键切换预览窗口
             'KeyZ': 'undo',          // Ctrl + Z 撤销
             'KeyY': 'redo',          // Ctrl + Y 重做
@@ -155,6 +156,20 @@ class PixelSplitter {
         
         // 初始化时不显示参考线
         this.guidelineCanvas.style.display = 'none';
+        
+        // 添加选区相关属性
+        this.selectionStart = null;
+        this.selectionEnd = null;
+        this.isSelecting = false;
+        this.hasSelection = false;
+        
+        // 添加选区画布
+        this.selectionCanvas = document.createElement('canvas');
+        this.selectionCanvas.id = 'selectionCanvas';
+        this.selectionCtx = this.selectionCanvas.getContext('2d');
+        this.selectionCanvas.width = this.width;
+        this.selectionCanvas.height = this.height;
+        document.querySelector('.canvas-container').appendChild(this.selectionCanvas);
     }
 
     initEventListeners() {
@@ -291,6 +306,64 @@ class PixelSplitter {
                 modal.style.display = 'none';
             }, 300); // 与 CSS 过渡时间相匹配
         };
+
+        // 添加选区事件监听
+        this.editCanvas.addEventListener('mousedown', (e) => {
+            if (e.shiftKey) {
+                this.handleSelectionStart(e);
+            }
+        });
+        
+        this.editCanvas.addEventListener('mousemove', (e) => {
+            if (this.isSelecting) {
+                this.handleSelectionMove(e);
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (this.isSelecting) {
+                this.handleSelectionEnd();
+            }
+        });
+        
+        // 添加清除选区的快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.hasSelection) {
+                this.clearSelection();
+            }
+        });
+
+        // 修改 downloadImage 方法
+        document.getElementById('downloadBtn').addEventListener('mouseenter', () => {
+            // 显示提示信息
+            const tip = document.createElement('div');
+            tip.className = 'download-tip';
+            tip.textContent = '按住 Shift 键并拖动鼠标可以选择要导出的区域';
+            document.getElementById('downloadBtn').appendChild(tip);
+        });
+
+        document.getElementById('downloadBtn').addEventListener('mouseleave', () => {
+            // 移除提示信息
+            const tip = document.querySelector('.download-tip');
+            if (tip) tip.remove();
+        });
+
+        // 添加工具按钮事件
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tool = btn.id.replace('Tool', '');
+                this.selectTool(tool);
+            });
+        });
+
+        // 添加撤销/重做按钮事件
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (this.editMode) this.undo();
+        });
+
+        document.getElementById('redoBtn').addEventListener('click', () => {
+            if (this.editMode) this.redo();
+        });
     }
 
     drawGuidelines() {
@@ -317,6 +390,11 @@ class PixelSplitter {
     }
 
     handleMouseDown(e) {
+        if (this.currentTool === 'select') {
+            this.isDrawing = true;
+            this.handleSelectionStart(e);
+            return;
+        }
         const rect = this.guidelineCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -413,7 +491,10 @@ class PixelSplitter {
     }
 
     handleMouseUp() {
-        this.isDragging = false;
+        if (this.currentTool === 'select' && this.isSelecting) {
+            this.handleSelectionEnd();
+        }
+        this.isDrawing = false;
         this.selectedLine = null;
     }
 
@@ -602,6 +683,23 @@ class PixelSplitter {
     downloadImage() {
         if (!this.processedImage) return;
 
+        // 如果有选区，询问用户是否只导出选区
+        if (this.hasSelection) {
+            const selection = this.getSelectionBounds();
+            if (confirm('是否只导出选中区域？\n\n点击"确定"导出选中区域\n点击"取消"导出完整图片')) {
+                this.downloadSelectedArea(selection);
+                // 导出后自动清除选区
+                this.clearSelection();
+            } else {
+                this.downloadFullImage();
+            }
+        } else {
+            this.downloadFullImage();
+        }
+    }
+
+    // 添加 downloadFullImage 方法
+    downloadFullImage() {
         // 创建临时画布用于合并图层
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
@@ -649,6 +747,60 @@ class PixelSplitter {
             // 导出合并后的图片
             const link = document.createElement('a');
             link.download = 'pixel_art.png';
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+        };
+        img.src = this.processedImage;
+    }
+
+    // 添加选区导出方法
+    downloadSelectedArea(bounds) {
+        // 创建临时画布
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // 设置画布大小为选区大小
+        tempCanvas.width = bounds.width;
+        tempCanvas.height = bounds.height;
+        
+        // 绘制选区内容
+        const img = new Image();
+        img.onload = () => {
+            // 禁用图像平滑
+            tempCtx.imageSmoothingEnabled = false;
+            
+            // 绘制处理后的图片选区
+            tempCtx.drawImage(
+                img,
+                bounds.x, bounds.y, bounds.width, bounds.height,
+                0, 0, bounds.width, bounds.height
+            );
+            
+            // 获取编辑画布的选区内容
+            const editData = this.editCtx.getImageData(
+                bounds.x * this.pixelSize + this.displayOffset.x,
+                bounds.y * this.pixelSize + this.displayOffset.y,
+                bounds.width * this.pixelSize,
+                bounds.height * this.pixelSize
+            );
+            
+            // 创建临时画布来缩放编辑内容
+            const editTempCanvas = document.createElement('canvas');
+            const editTempCtx = editTempCanvas.getContext('2d');
+            editTempCanvas.width = bounds.width * this.pixelSize;
+            editTempCanvas.height = bounds.height * this.pixelSize;
+            editTempCtx.putImageData(editData, 0, 0);
+            
+            // 将编辑内容缩放到正确大小并合并
+            tempCtx.drawImage(
+                editTempCanvas,
+                0, 0, editTempCanvas.width, editTempCanvas.height,
+                0, 0, bounds.width, bounds.height
+            );
+            
+            // 导出选区图片
+            const link = document.createElement('a');
+            link.download = 'pixel_art_selection.png';
             link.href = tempCanvas.toDataURL('image/png');
             link.click();
         };
@@ -810,16 +962,17 @@ class PixelSplitter {
     // 工具选择方法
     selectTool(tool) {
         this.currentTool = tool;
+        
+        // 更新工具按钮状态
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
         document.getElementById(`${tool}Tool`).classList.add('active');
         
-        // 重置绘制模式
-        this.editCtx.globalCompositeOperation = 'source-over';
-        
-        // 显示工具切换提示
-        this.showToolTip(`已切换到${this.getToolName(tool)}`);
+        // 如果切换到其他工具，清除选区
+        if (tool !== 'select' && this.hasSelection) {
+            this.clearSelection();
+        }
     }
 
     // 添加工具名称转换方法
@@ -941,12 +1094,16 @@ class PixelSplitter {
         if (!this.editMode || !this.isDrawing) return;
         
         const rect = this.editCanvas.getBoundingClientRect();
-        const x = Math.round(e.clientX - rect.left);
-        const y = Math.round(e.clientY - rect.top);
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 计算相对于显示区域的位置
+        const relativeX = x - this.displayOffset.x;
+        const relativeY = y - this.displayOffset.y;
         
         // 计算网格位置
-        const gridX = Math.floor((x - this.displayOffset.x) / this.pixelSize);
-        const gridY = Math.floor((y - this.displayOffset.y) / this.pixelSize);
+        const gridX = Math.floor(relativeX / this.pixelSize);
+        const gridY = Math.floor(relativeY / this.pixelSize);
         
         // 检查是否在有效的绘制范围内
         if (gridX < 0 || gridY < 0 || 
@@ -955,48 +1112,54 @@ class PixelSplitter {
             return;
         }
 
-        // 如果是取色器工具
-        if (this.currentTool === 'picker') {
-            // 计算精确的像素位置
-            const pixelX = Math.floor(gridX * this.pixelSize + this.displayOffset.x);
-            const pixelY = Math.floor(gridY * this.pixelSize + this.displayOffset.y);
-            
-            // 获取编辑画布上的颜色
-            const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
-            if (editPixel[3] > 0) { // 如果编辑画布上有颜色
-                const color = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
-                this.selectColor(color);
-            }
-            
-            // 取色后自动切换回铅笔工具
-            this.selectTool('pencil');
-            return;
-        }
-
-        // 保存当前状态用于撤销/重做
-        if (!this.isDrawing) {
-            this.saveState();
-        }
-
         // 计算像素位置
         const pixelX = gridX * this.pixelSize + this.displayOffset.x;
         const pixelY = gridY * this.pixelSize + this.displayOffset.y;
 
-        // 设置绘制模式
-        if (this.currentTool === 'eraser') {
-            // 使用 globalCompositeOperation 来实现擦除
-            this.editCtx.globalCompositeOperation = 'destination-out';
-            this.editCtx.fillStyle = 'rgba(0, 0, 0, 1)';
-        } else {
-            this.editCtx.globalCompositeOperation = 'source-over';
-            this.editCtx.fillStyle = this.currentColor;
+        // 根据不同工具处理
+        switch (this.currentTool) {
+            case 'select':
+                if (!this.isSelecting) {
+                    this.handleSelectionStart(e);
+                } else {
+                    this.handleSelectionMove(e);
+                }
+                break;
+            
+            case 'picker':
+                // 获取编辑画布上的颜色
+                const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
+                if (editPixel[3] > 0) { // 如果编辑画布上有颜色
+                    const color = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
+                    this.selectColor(color);
+                }
+                // 取色后自动切换回铅笔工具
+                this.selectTool('pencil');
+                break;
+            
+            case 'pencil':
+            case 'eraser':
+                // 保存当前状态用于撤销/重做
+                if (!this.isDrawing) {
+                    this.saveState();
+                }
+
+                // 设置绘制模式
+                if (this.currentTool === 'eraser') {
+                    this.editCtx.globalCompositeOperation = 'destination-out';
+                    this.editCtx.fillStyle = 'rgba(0, 0, 0, 1)';
+                } else {
+                    this.editCtx.globalCompositeOperation = 'source-over';
+                    this.editCtx.fillStyle = this.currentColor;
+                }
+                
+                // 绘制
+                this.editCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+                
+                // 恢复默认绘制模式
+                this.editCtx.globalCompositeOperation = 'source-over';
+                break;
         }
-        
-        // 绘制
-        this.editCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
-        
-        // 恢复默认绘制模式
-        this.editCtx.globalCompositeOperation = 'source-over';
     }
 
     stopDrawing() {
@@ -1005,23 +1168,28 @@ class PixelSplitter {
 
     // 历史记录相关方法
     saveState() {
-        if (this.historyIndex < this.history.length - 1) {
-            this.history = this.history.slice(0, this.historyIndex + 1);
-        }
+        // 删除当前位置之后的历史记录
+        this.history = this.history.slice(0, this.historyIndex + 1);
         
+        // 添加新的状态
         this.history.push(this.editCtx.getImageData(0, 0, this.width, this.height));
+        
+        // 如果历史记录超过最大限制，删除最早的记录
         if (this.history.length > this.maxHistory) {
             this.history.shift();
+        } else {
+            this.historyIndex++;
         }
         
-        this.historyIndex = this.history.length - 1;
+        // 更新按钮状态
         this.updateHistoryButtons();
     }
 
     undo() {
         if (this.historyIndex > 0) {
             this.historyIndex--;
-            this.editCtx.putImageData(this.history[this.historyIndex], 0, 0);
+            const imageData = this.history[this.historyIndex];
+            this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
         }
     }
@@ -1029,14 +1197,18 @@ class PixelSplitter {
     redo() {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
-            this.editCtx.putImageData(this.history[this.historyIndex], 0, 0);
+            const imageData = this.history[this.historyIndex];
+            this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
         }
     }
 
     updateHistoryButtons() {
-        document.getElementById('undoBtn').disabled = this.historyIndex <= 0;
-        document.getElementById('redoBtn').disabled = this.historyIndex >= this.history.length - 1;
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        
+        undoBtn.disabled = this.historyIndex <= 0;
+        redoBtn.disabled = this.historyIndex >= this.history.length - 1;
     }
 
     // 添加编辑模式切换方法
@@ -1283,6 +1455,7 @@ class PixelSplitter {
                 case 'pencilTool':
                 case 'eraserTool':
                 case 'pickerTool':
+                case 'selectTool':  // 添加选区工具的快捷键支持
                     if (this.editMode) {
                         e.preventDefault();
                         this.selectTool(shortcut.replace('Tool', ''));
@@ -1308,6 +1481,7 @@ class PixelSplitter {
             'pencilTool': { name: '铅笔', key: 'B' },
             'eraserTool': { name: '橡皮擦', key: 'E' },
             'pickerTool': { name: '取色器', key: 'I' },
+            'selectTool': { name: '选区工具', key: 'S' },
             'togglePreview': { name: '预览窗口', key: 'P' },
             'undoBtn': { name: '撤销', key: 'Ctrl+Z' },
             'redoBtn': { name: '重做', key: 'Ctrl+Y' }
@@ -1464,6 +1638,94 @@ class PixelSplitter {
             this.cursorCtx.lineWidth = 1;
             this.cursorCtx.strokeRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
         }
+    }
+
+    // 添加选区处理方法
+    handleSelectionStart(e) {
+        const rect = this.editCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - this.displayOffset.x;
+        const y = e.clientY - rect.top - this.displayOffset.y;
+        
+        this.selectionStart = {
+            x: Math.floor(x / this.pixelSize),
+            y: Math.floor(y / this.pixelSize)
+        };
+        
+        this.isSelecting = true;
+        this.hasSelection = false;
+        this.drawSelection();
+    }
+
+    handleSelectionMove(e) {
+        if (!this.isSelecting) return;
+        
+        const rect = this.editCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - this.displayOffset.x;
+        const y = e.clientY - rect.top - this.displayOffset.y;
+        
+        this.selectionEnd = {
+            x: Math.floor(x / this.pixelSize),
+            y: Math.floor(y / this.pixelSize)
+        };
+        
+        this.drawSelection();
+    }
+
+    handleSelectionEnd() {
+        if (this.isSelecting && this.selectionStart && this.selectionEnd) {
+            this.hasSelection = true;
+        }
+        this.isSelecting = false;
+    }
+
+    drawSelection() {
+        this.selectionCtx.clearRect(0, 0, this.width, this.height);
+        
+        if (!this.selectionStart || !this.selectionEnd) return;
+        
+        const bounds = this.getSelectionBounds();
+        
+        // 绘制选区边框
+        this.selectionCtx.strokeStyle = '#00ff00';
+        this.selectionCtx.lineWidth = 2;
+        this.selectionCtx.setLineDash([5, 5]);
+        this.selectionCtx.strokeRect(
+            bounds.x * this.pixelSize + this.displayOffset.x,
+            bounds.y * this.pixelSize + this.displayOffset.y,
+            bounds.width * this.pixelSize,
+            bounds.height * this.pixelSize
+        );
+        
+        //绘制选区半透明遮罩
+        this.selectionCtx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+        this.selectionCtx.fillRect(
+            bounds.x * this.pixelSize + this.displayOffset.x,
+            bounds.y * this.pixelSize + this.displayOffset.y,
+            bounds.width * this.pixelSize,
+            bounds.height * this.pixelSize
+        );
+    }
+
+    getSelectionBounds() {
+        if (!this.selectionStart || !this.selectionEnd) return null;
+        
+        const x = Math.min(this.selectionStart.x, this.selectionEnd.x);
+        const y = Math.min(this.selectionStart.y, this.selectionEnd.y);
+        const width = Math.abs(this.selectionEnd.x - this.selectionStart.x) + 1;
+        const height = Math.abs(this.selectionEnd.y - this.selectionStart.y) + 1;
+        
+        return { x, y, width, height };
+    }
+
+    clearSelection() {
+        if (this.currentTool === 'select') {
+            this.selectTool('pencil'); // 清除选区后自动切换回铅笔工具
+        }
+        this.selectionStart = null;
+        this.selectionEnd = null;
+        this.isSelecting = false;
+        this.hasSelection = false;
+        this.selectionCtx.clearRect(0, 0, this.width, this.height);
     }
 }
 
