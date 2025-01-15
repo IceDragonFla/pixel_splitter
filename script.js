@@ -975,12 +975,30 @@ class PixelSplitter {
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        document.getElementById(`${tool}Tool`).classList.add('active');
+
+        // 安全地获取工具按钮
+        const toolBtn = document.getElementById(`${tool}Tool`);
+        if (toolBtn) {
+            toolBtn.classList.add('active');
+        } else {
+            console.warn(`Tool button not found for: ${tool}`);
+        }
         
         // 如果切换到其他工具，清除选区
         if (tool !== 'select' && this.hasSelection) {
             this.clearSelection();
         }
+
+        // 更新状态栏或显示提示
+        const toolNames = {
+            'pencil': '铅笔',
+            'eraser': '橡皮擦',
+            'picker': '取色器',
+            'select': '选区工具'
+        };
+        
+        const toolName = toolNames[tool] || tool;
+        this.showToolTip(`已切换到${toolName}`);
     }
 
     // 添加工具名称转换方法
@@ -1038,18 +1056,36 @@ class PixelSplitter {
     }
 
     // 添加色卡生成方法
-    generateColorPalette(canvas) {
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+    generateColorPalette(sourceCanvas = null) {
+        this.colorPalette = new Set();
         
-        this.colorPalette.clear();
-        
-        // 收集所有颜色
-        for (let i = 0; i < data.length; i += 4) {
-            if (data[i + 3] > 0) { // 不是完全透明的像素
-                const color = `rgb(${data[i]}, ${data[i + 1]}, ${data[i + 2]})`;
-                this.colorPalette.add(color);
+        if (!sourceCanvas) {
+            // 如果没有提供源画布，从编辑画布获取颜色
+            const imageData = this.editCtx.getImageData(
+                this.displayOffset.x,
+                this.displayOffset.y,
+                Math.floor((this.width - this.displayOffset.x * 2) / this.pixelSize) * this.pixelSize,
+                Math.floor((this.height - this.displayOffset.y * 2) / this.pixelSize) * this.pixelSize
+            );
+            const data = imageData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] > 0) { // 不是完全透明的像素
+                    const color = `rgb(${data[i]}, ${data[i + 1]}, ${data[i + 2]})`;
+                    this.colorPalette.add(color);
+                }
+            }
+        } else {
+            // 如果提供了源画布，从源画布获取颜色
+            const ctx = sourceCanvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+            const data = imageData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] > 0) { // 不是完全透明的像素
+                    const color = `rgb(${data[i]}, ${data[i + 1]}, ${data[i + 2]})`;
+                    this.colorPalette.add(color);
+                }
             }
         }
         
@@ -1213,9 +1249,14 @@ class PixelSplitter {
             this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
             
-            // 如果当前工具是取色器或选区工具，返回上一次使用的工具
+            // 如果当前工具是取色器或选区工具，尝试返回上一次使用的工具
             if (currentTool === 'picker' || currentTool === 'select') {
-                this.selectTool(this.lastUsedTool);
+                try {
+                    this.selectTool(this.lastUsedTool);
+                } catch (error) {
+                    console.warn('Failed to switch tool:', error);
+                    this.currentTool = this.lastUsedTool;
+                }
             }
         }
     }
@@ -1230,9 +1271,14 @@ class PixelSplitter {
             this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
             
-            // 如果当前工具是取色器或选区工具，返回上一次使用的工具
+            // 如果当前工具是取色器或选区工具，尝试返回上一次使用的工具
             if (currentTool === 'picker' || currentTool === 'select') {
-                this.selectTool(this.lastUsedTool);
+                try {
+                    this.selectTool(this.lastUsedTool);
+                } catch (error) {
+                    console.warn('Failed to switch tool:', error);
+                    this.currentTool = this.lastUsedTool;
+                }
             }
         }
     }
@@ -1614,7 +1660,7 @@ class PixelSplitter {
 
     // 添加画笔投影更新方法
     updateCursor(e) {
-        if (!this.editMode) return;
+        if (!this.editMode || !this.currentTool) return;
         
         const rect = this.editCanvas.getBoundingClientRect();
         const x = Math.round(e.clientX - rect.left);
@@ -1638,41 +1684,21 @@ class PixelSplitter {
             return;
         }
         
-        // 绘制投影
-        if (this.currentTool === 'picker') {
-            // 取色器模式：显示当前像素的颜色
-            const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
-            if (editPixel[3] > 0) {
-                this.lastPickedColor = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
-            }
-            
-            // 绘制取色器预览框
-            this.cursorCtx.strokeStyle = 'white';
-            this.cursorCtx.lineWidth = 2;
-            this.cursorCtx.strokeRect(pixelX - 1, pixelY - 1, this.pixelSize + 2, this.pixelSize + 2);
-            this.cursorCtx.strokeStyle = 'black';
-            this.cursorCtx.lineWidth = 1;
-            this.cursorCtx.strokeRect(pixelX - 2, pixelY - 2, this.pixelSize + 4, this.pixelSize + 4);
-            
-            // 显示颜色预览
-            if (this.lastPickedColor) {
-                // 绘制颜色预览框
-                this.cursorCtx.fillStyle = this.lastPickedColor;
-                this.cursorCtx.fillRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
-                this.cursorCtx.strokeStyle = 'white';
-                this.cursorCtx.strokeRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
-            }
-        } else {
-            // 画笔/橡皮擦模式：显示工具预览
-            this.cursorCtx.fillStyle = this.currentTool === 'eraser' ? 
-                'rgba(255, 255, 255, 0.5)' : 
-                this.currentColor.replace('rgb', 'rgba').replace(')', ', 0.5)');
-            this.cursorCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
-            
-            // 添加边框
-            this.cursorCtx.strokeStyle = this.currentTool === 'eraser' ? '#999' : this.currentColor;
-            this.cursorCtx.lineWidth = 1;
-            this.cursorCtx.strokeRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        // 根据当前工具绘制不同的光标效果
+        switch (this.currentTool) {
+            case 'picker':
+                // 绘制取色器预览框
+                this.drawPickerCursor(pixelX, pixelY);
+                break;
+            case 'select':
+                // 绘制选区光标
+                this.drawSelectionCursor(pixelX, pixelY);
+                break;
+            case 'pencil':
+            case 'eraser':
+                // 绘制画笔/橡皮擦光标
+                this.drawToolCursor(pixelX, pixelY);
+                break;
         }
     }
 
@@ -1754,14 +1780,78 @@ class PixelSplitter {
     }
 
     clearSelection() {
-        if (this.currentTool === 'select') {
-            this.selectTool('pencil'); // 清除选区后自动切换回铅笔工具
+        const currentTool = this.currentTool;
+        if (currentTool === 'select') {
+            // 尝试切换回铅笔工具，如果失败则不切换工具
+            try {
+                this.selectTool('pencil');
+            } catch (error) {
+                console.warn('Failed to switch to pencil tool:', error);
+                // 至少更新当前工具状态
+                this.currentTool = 'pencil';
+            }
         }
+        
         this.selectionStart = null;
         this.selectionEnd = null;
         this.isSelecting = false;
         this.hasSelection = false;
         this.selectionCtx.clearRect(0, 0, this.width, this.height);
+    }
+
+    // 绘制取色器光标
+    drawPickerCursor(pixelX, pixelY) {
+        // 获取当前像素的颜色
+        const editPixel = this.editCtx.getImageData(pixelX, pixelY, 1, 1).data;
+        if (editPixel[3] > 0) {
+            this.lastPickedColor = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
+        }
+        
+        // 绘制取色器预览框
+        this.cursorCtx.strokeStyle = 'white';
+        this.cursorCtx.lineWidth = 2;
+        this.cursorCtx.strokeRect(pixelX - 1, pixelY - 1, this.pixelSize + 2, this.pixelSize + 2);
+        this.cursorCtx.strokeStyle = 'black';
+        this.cursorCtx.lineWidth = 1;
+        this.cursorCtx.strokeRect(pixelX - 2, pixelY - 2, this.pixelSize + 4, this.pixelSize + 4);
+        
+        // 显示颜色预览
+        if (this.lastPickedColor) {
+            // 绘制颜色预览框
+            this.cursorCtx.fillStyle = this.lastPickedColor;
+            this.cursorCtx.fillRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
+            this.cursorCtx.strokeStyle = 'white';
+            this.cursorCtx.strokeRect(pixelX + this.pixelSize + 5, pixelY, 20, 20);
+        }
+    }
+
+    // 绘制选区光标
+    drawSelectionCursor(pixelX, pixelY) {
+        this.cursorCtx.strokeStyle = '#00ff00';
+        this.cursorCtx.lineWidth = 1;
+        this.cursorCtx.setLineDash([2, 2]);
+        this.cursorCtx.strokeRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        this.cursorCtx.setLineDash([]); // 重置虚线样式
+    }
+
+    // 绘制工具光标（铅笔/橡皮擦）
+    drawToolCursor(pixelX, pixelY) {
+        // 设置填充样式
+        if (this.currentTool === 'eraser') {
+            this.cursorCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            this.cursorCtx.strokeStyle = '#999';
+        } else {
+            // 对于铅笔工具，使用当前选择的颜色
+            this.cursorCtx.fillStyle = this.currentColor ? 
+                this.currentColor.replace('rgb', 'rgba').replace(')', ', 0.5)') :
+                'rgba(0, 0, 0, 0.5)';
+            this.cursorCtx.strokeStyle = this.currentColor || '#000';
+        }
+        
+        // 绘制光标
+        this.cursorCtx.fillRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
+        this.cursorCtx.lineWidth = 1;
+        this.cursorCtx.strokeRect(pixelX, pixelY, this.pixelSize, this.pixelSize);
     }
 }
 
