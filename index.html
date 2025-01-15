@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>像素图纸拆分工具</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="changelog.js"></script>
 </head>
 <body>
     <div class="container">
@@ -30,6 +31,9 @@
                     <option value="4" selected>4x</option>
                     <option value="8">8x</option>
                 </select>
+            </div>
+            <div class="about-controls">
+                <button id="aboutBtn">关于</button>
             </div>
         </div>
         
@@ -103,6 +107,25 @@
             <span>网格大小: <span id="gridSize">0 x 0</span></span>
             <span>选区范围: <span id="selectionArea">0,0,0,0</span></span>
             <span>当前颜色: <span id="currentColor">无</span></span>
+        </div>
+    </div>
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>关于像素图纸拆分工具</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="author-info">
+                    <h3>作者信息</h3>
+                    <p>作者：CrystalYan Liu</p>
+                    <p>GitHub：<a href="https://github.com/IceDragonFla" target="_blank">@CrystalYan Liu</a></p>
+                </div>
+                <div class="changelog">
+                    <h3>更新日志</h3>
+                    <div id="changelogContent"></div>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

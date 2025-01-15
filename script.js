@@ -249,6 +249,48 @@ class PixelSplitter {
         this.editCanvas.addEventListener('mouseleave', () => {
             this.cursorCtx.clearRect(0, 0, this.width, this.height);
         });
+
+        // 添加关于按钮事件
+        const modal = document.getElementById('aboutModal');
+        const aboutBtn = document.getElementById('aboutBtn');
+        const closeBtn = modal.querySelector('.close');
+
+        aboutBtn.addEventListener('click', () => {
+            // 更新更新日志内容
+            document.getElementById('changelogContent').innerHTML = generateChangelogHTML();
+            
+            // 显示模态框
+            modal.style.display = 'block';
+            // 触发重排以启动动画
+            modal.offsetHeight;
+            modal.classList.add('show');
+        });
+
+        closeBtn.addEventListener('click', () => {
+            closeModal();
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // 添加 ESC 键关闭功能
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('show')) {
+                closeModal();
+            }
+        });
+
+        // 关闭模态框的函数
+        const closeModal = () => {
+            modal.classList.remove('show');
+            // 等待动画完成后隐藏
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300); // 与 CSS 过渡时间相匹配
+        };
     }
 
     drawGuidelines() {
