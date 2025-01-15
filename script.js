@@ -1302,7 +1302,6 @@ class PixelSplitter {
         
         // 更新工具栏显示状态
         document.querySelector('.drawing-tools').classList.toggle('active', this.editMode);
-        document.querySelector('.color-palette').classList.toggle('active', this.editMode);
         
         // 更新画布事件状态
         this.editCanvas.style.pointerEvents = this.editMode ? 'all' : 'none';
@@ -1352,6 +1351,9 @@ class PixelSplitter {
                 
                 // 生成初始颜色调色板
                 this.generateColorPalette();
+                
+                // 显示色卡和调色板
+                document.querySelector('.color-palette').style.display = 'flex';
             };
             img.src = this.processedImage;
             
@@ -1363,6 +1365,9 @@ class PixelSplitter {
         } else {
             // 关闭编辑模式时的清理工作
             this.boundaryCanvas.style.display = 'none';
+            
+            // 隐藏色卡和调色板
+            document.querySelector('.color-palette').style.display = 'none';
             
             // 如果有编辑后的图片，将其绘制回主画布
             if (this.editMode === false && this.history.length > 0) {
