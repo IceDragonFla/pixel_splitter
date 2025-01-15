@@ -40,8 +40,8 @@ class PixelSplitter {
         this.offsetX = 0;
         this.offsetY = 0;
         this.isDraggingImage = false;
-        this.lastX = 0;
-        this.lastY = 0;
+        this.lastX = null;
+        this.lastY = null;
         
         // 保存原始图片信息
         this.originalImage = null;
@@ -170,6 +170,9 @@ class PixelSplitter {
         this.selectionCanvas.width = this.width;
         this.selectionCanvas.height = this.height;
         document.querySelector('.canvas-container').appendChild(this.selectionCanvas);
+        
+        // 添加上一次使用的工具记录
+        this.lastUsedTool = 'pencil';
     }
 
     initEventListeners() {
@@ -961,6 +964,11 @@ class PixelSplitter {
 
     // 工具选择方法
     selectTool(tool) {
+        // 记录上一次使用的工具（不包括取色器和选区工具）
+        if (tool !== 'picker' && tool !== 'select') {
+            this.lastUsedTool = tool;
+        }
+        
         this.currentTool = tool;
         
         // 更新工具按钮状态
@@ -1133,15 +1141,18 @@ class PixelSplitter {
                     const color = `rgb(${editPixel[0]}, ${editPixel[1]}, ${editPixel[2]})`;
                     this.selectColor(color);
                 }
-                // 取色后自动切换回铅笔工具
-                this.selectTool('pencil');
+                // 取色后返回上一次使用的工具
+                this.selectTool(this.lastUsedTool);
                 break;
             
             case 'pencil':
             case 'eraser':
-                // 保存当前状态用于撤销/重做
-                if (!this.isDrawing) {
+                // 如果是新的绘制操作，保存当前状态
+                if (!this.lastX || !this.lastY || 
+                    this.lastX !== gridX || this.lastY !== gridY) {
                     this.saveState();
+                    this.lastX = gridX;
+                    this.lastY = gridY;
                 }
 
                 // 设置绘制模式
@@ -1163,6 +1174,11 @@ class PixelSplitter {
     }
 
     stopDrawing() {
+        if (this.isDrawing) {
+            // 重置最后绘制的位置
+            this.lastX = null;
+            this.lastY = null;
+        }
         this.isDrawing = false;
     }
 
@@ -1172,11 +1188,13 @@ class PixelSplitter {
         this.history = this.history.slice(0, this.historyIndex + 1);
         
         // 添加新的状态
-        this.history.push(this.editCtx.getImageData(0, 0, this.width, this.height));
+        const newState = this.editCtx.getImageData(0, 0, this.width, this.height);
+        this.history.push(newState);
         
         // 如果历史记录超过最大限制，删除最早的记录
         if (this.history.length > this.maxHistory) {
             this.history.shift();
+            this.historyIndex = Math.max(0, this.historyIndex - 1);
         } else {
             this.historyIndex++;
         }
@@ -1187,19 +1205,35 @@ class PixelSplitter {
 
     undo() {
         if (this.historyIndex > 0) {
+            // 记住当前工具
+            const currentTool = this.currentTool;
+            
             this.historyIndex--;
             const imageData = this.history[this.historyIndex];
             this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
+            
+            // 如果当前工具是取色器或选区工具，返回上一次使用的工具
+            if (currentTool === 'picker' || currentTool === 'select') {
+                this.selectTool(this.lastUsedTool);
+            }
         }
     }
 
     redo() {
         if (this.historyIndex < this.history.length - 1) {
+            // 记住当前工具
+            const currentTool = this.currentTool;
+            
             this.historyIndex++;
             const imageData = this.history[this.historyIndex];
             this.editCtx.putImageData(imageData, 0, 0);
             this.updateHistoryButtons();
+            
+            // 如果当前工具是取色器或选区工具，返回上一次使用的工具
+            if (currentTool === 'picker' || currentTool === 'select') {
+                this.selectTool(this.lastUsedTool);
+            }
         }
     }
 
@@ -1263,10 +1297,12 @@ class PixelSplitter {
                 // 清空主画布上的处理后图片
                 this.mainCtx.clearRect(0, 0, this.width, this.height);
                 
-                // 保存初始状态用于撤销/重做
-                this.history = [this.editCtx.getImageData(0, 0, this.width, this.height)];
-                this.historyIndex = 0;
-                this.updateHistoryButtons();
+                // 初始化历史记录
+                this.history = [];
+                this.historyIndex = -1;
+                
+                // 保存初始状态
+                this.saveState();
                 
                 // 生成初始颜色调色板
                 this.generateColorPalette();
