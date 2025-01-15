@@ -4,7 +4,7 @@ const CURRENT_VERSION = 'v1.1.0';
 // 版本历史记录
 const CHANGELOG = {
     'v1.1.0': {
-        date: '2024-03-22',
+        date: '2025-01-15',
         changes: [
             '添加预览窗口功能',
             '优化取色器精确度',
@@ -12,7 +12,7 @@ const CHANGELOG = {
         ]
     },
     'v1.0.0': {
-        date: '2024-01-15',
+        date: '2025-01-14',
         changes: [
             '首次发布',
             '基础编辑功能',
